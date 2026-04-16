@@ -110,22 +110,23 @@ export const checkQuestCompletion = async (socketId, userId, room, ioRef, userSo
       }
 
       const reward = quest.reward_coins || 50;
-      let coinsAwarded = false;
+
+      // Record completion FIRST to prevent double-reward on failure
       try {
-        await updateCoins(userId, reward, ioRef, userSockets);
-        coinsAwarded = true;
+        await recordCompletedQuest(userId, quest.id, reward);
       } catch (err) {
-        console.error("[checkQuestCompletion] Failed to award coins:", err);
+        console.error("[checkQuestCompletion] Failed to record completion:", err);
+        // Cannot safely award coins without recording — skip this quest
+        ioRef.to(socketId).emit("questError", { error: "Failed to complete quest, please try again" });
+        continue;
       }
 
-      // Only persist completion if coins were successfully awarded —
-      // otherwise leave the quest unrecorded so a retry can succeed.
-      if (coinsAwarded) {
-        try {
-          await recordCompletedQuest(userId, quest.id, reward);
-        } catch (err) {
-          console.error("[checkQuestCompletion] Failed to record completion:", err);
-        }
+      try {
+        await updateCoins(userId, reward, ioRef, userSockets);
+      } catch (err) {
+        console.error("[checkQuestCompletion] Failed to award coins (quest recorded):", err);
+        // Quest is recorded but coins failed — log for manual reconciliation
+        // This is safer than the reverse (coins awarded but quest not recorded = exploit)
       }
 
       ioRef.to(socketId).emit("questCompleted", {

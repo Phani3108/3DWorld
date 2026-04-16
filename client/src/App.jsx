@@ -2,11 +2,12 @@ import { Canvas } from "@react-three/fiber";
 // import { EffectComposer, N8AO } from "@react-three/postprocessing";
 import { useProgress } from "@react-three/drei";
 import { useAtom } from "jotai";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Component } from "react";
 import { Experience } from "./components/Experience";
 import { Loader, BubblesBackground } from "./components/Loader";
 import {
   SocketManager,
+  socket,
   itemsAtom,
   usernameAtom,
 } from "./components/SocketManager";
@@ -18,6 +19,54 @@ import { Minimap } from "./components/Minimap";
 import soundManager from "./audio/SoundManager";
 import AudioSettingsPanel from "./audio/AudioSettingsPanel";
 import { BulletinBoardPanel } from "./components/BulletinBoard";
+
+class ErrorBoundary extends Component {
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error, info) {
+    console.error("[ErrorBoundary]", error, info.componentStack);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="fixed inset-0 flex items-center justify-center bg-gray-900 text-white z-50">
+          <div className="text-center space-y-4">
+            <h1 className="text-2xl font-bold">Something went wrong</h1>
+            <button
+              className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
+              onClick={() => window.location.reload()}
+            >
+              Reload
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const ConnectionBanner = () => {
+  const [connected, setConnected] = useState(socket.connected);
+  useEffect(() => {
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+    };
+  }, []);
+  if (connected) return null;
+  return (
+    <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white text-center py-2 text-sm font-medium">
+      Connection lost — reconnecting…
+    </div>
+  );
+};
 
 const makeFallbackUsername = (role = "human") => {
   const prefix = role === "agent" ? "Agent" : "Guest";
@@ -91,7 +140,8 @@ function App() {
   }, []);
 
   return (
-    <>
+    <ErrorBoundary>
+      <ConnectionBanner />
       <SocketManager />
       <Canvas
         shadows
@@ -134,7 +184,7 @@ function App() {
           />
         </>
       )}
-    </>
+    </ErrorBoundary>
   );
 }
 

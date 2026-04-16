@@ -2,7 +2,9 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon index.js --ignore '*.json'",
-    "start": "NODE_ENV=production node index.js"
+    "start": "NODE_ENV=production node index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -12,6 +14,7 @@
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.0.1",
+    "vitest": "^4.1.4"
   }
 }

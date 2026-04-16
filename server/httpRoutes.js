@@ -1275,6 +1275,13 @@ Want to build your own space? Each bot gets **one room** — here's how:
               const sitter = room?.characters.find((c) => c.id === data.id);
               pushEvent({ type: "player_sit", from: sitter?.name || data.id, characterId: data.id, itemIndex: data.itemIndex });
             });
+            // Clean up botSockets on unexpected socket disconnect
+            botSocket.on("disconnect", () => {
+              const entry = botSockets.get(apiKey);
+              if (entry && entry.socket === botSocket) {
+                botSockets.delete(apiKey);
+              }
+            });
 
             botSockets.set(apiKey, {
               socket: botSocket,

@@ -15,6 +15,9 @@ export const BOND_LEVELS = [
   { threshold: 40, label: "Bonded" },
 ];
 
+const MAX_BOND_SCORE = 100;
+const COOLDOWN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 export const bondKey = (a, b) => [a.toLowerCase(), b.toLowerCase()].sort().join("::");
 
 export const getBondLevel = (score) => {
@@ -70,7 +73,7 @@ export const applyBondProgress = ({
   const delta = Math.max(0.1, Math.round(baseDelta * 100) / 100);
   const prevScore = bond.score;
 
-  bond.score = Math.max(0, Math.round((bond.score + delta) * 100) / 100);
+  bond.score = Math.min(MAX_BOND_SCORE, Math.max(0, Math.round((bond.score + delta) * 100) / 100));
   bond.lastInteractionAt = now;
   bond.cooldowns[cooldownKey] = now;
   if (cooldownKey === "wave") {
@@ -99,3 +102,16 @@ export const applyBondProgress = ({
           bond.score >= BOND_LEVELS[BOND_LEVELS.length - 1].threshold,
   };
 };
+
+// Periodically clean up expired cooldown entries to prevent memory growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [, bond] of bonds) {
+    if (!bond.cooldowns) continue;
+    for (const key of Object.keys(bond.cooldowns)) {
+      if (now - bond.cooldowns[key] > COOLDOWN_EXPIRY_MS) {
+        delete bond.cooldowns[key];
+      }
+    }
+  }
+}, 10 * 60 * 1000); // every 10 minutes

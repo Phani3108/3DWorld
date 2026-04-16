@@ -90,6 +90,28 @@ export function registerSocketHandlers(deps) {
   // Agent ID to Socket ID mapping for real-time agent messaging
   const agentSocketMap = new Map(); // Maps agentId -> socketId
 
+  if (OPEN_ACCESS && process.env.NODE_ENV === "production") {
+    console.warn("[SECURITY] OPEN_ACCESS is enabled in production — any client can register as a bot.");
+  }
+
+  // Strip HTML tags from user input (defense-in-depth; React escapes on render)
+  const stripHtml = (str) => str.replace(/<[^>]*>/g, "");
+
+  // Rate-limit password attempts: 5 per 60s per IP
+  const passwordAttempts = new Map();
+  const PASSWORD_MAX_ATTEMPTS = 5;
+  const PASSWORD_WINDOW_MS = 60_000;
+  const isPasswordRateLimited = (ip) => {
+    const now = Date.now();
+    let entry = passwordAttempts.get(ip);
+    if (!entry || now > entry.resetTime) {
+      entry = { count: 0, resetTime: now + PASSWORD_WINDOW_MS };
+      passwordAttempts.set(ip, entry);
+    }
+    entry.count++;
+    return entry.count > PASSWORD_MAX_ATTEMPTS;
+  };
+
   io.on("connection", async (socket) => {
     try {
       let room = null;
@@ -361,7 +383,7 @@ export function registerSocketHandlers(deps) {
         }
 
         attachUserSocket(resolvedUserId);
-        const displayName = opts?.name || (socket.data.officialBotKey ? botRegistry.get(socket.data.officialBotKey)?.name : null) || null;
+        const displayName = opts?.name ? stripHtml(String(opts.name).trim().slice(0, 50)) : (socket.data.officialBotKey ? botRegistry.get(socket.data.officialBotKey)?.name : null) || null;
         const userRecord = await ensureUser({ userId: resolvedUserId, name: displayName, isBot: isOfficialBot });
         if (userRecord) {
           playerCoins.set(resolvedUserId, typeof userRecord.coins === "number" ? userRecord.coins : DEFAULT_COINS);
@@ -660,12 +682,18 @@ export function registerSocketHandlers(deps) {
 
         const spot = available[0];
 
+        // Reserve seat BEFORE pathfinding to prevent race condition —
+        // two concurrent sit requests can't claim the same seat.
+        room.seatOccupancy.set(itemIndex + "-" + spot.seatIdx, socket.id);
+
         // Pathfind to walkTo position
         const path = findPath(room, pos, spot.walkTo);
-        if (!path) return;
+        if (!path) {
+          // Release reservation if pathfinding fails
+          room.seatOccupancy.delete(itemIndex + "-" + spot.seatIdx);
+          return;
+        }
 
-        // Reserve seat
-        room.seatOccupancy.set(itemIndex + "-" + spot.seatIdx, socket.id);
         room.characterSeats.set(socket.id, {
           itemIndex,
           seatIdx: spot.seatIdx,
@@ -856,7 +884,7 @@ export function registerSocketHandlers(deps) {
           return;
         }
         if (typeof message !== "string") return;
-        const safeMessage = message.slice(0, 500);
+        const safeMessage = stripHtml(message.slice(0, 500));
         if (safeMessage.length === 0) return;
         io.to(room.id).emit("playerChatMessage", {
           id: socket.id,
@@ -1263,7 +1291,7 @@ export function registerSocketHandlers(deps) {
         // REST bot - push to event buffer
         for (const [, conn] of botSockets) {
           if (conn.botId === botId) {
-            conn.eventBuffer.push({ type: "build_request", from: character?.name || "Player", fromId: socket.id, timestamp: Date.now() });
+            (conn.eventBuffer || (conn.eventBuffer = [])).push({ type: "build_request", from: character?.name || "Player", fromId: socket.id, timestamp: Date.now() });
             io.to(room.id).emit("buildStarted", { botId, requestedBy: socket.id });
             break;
           }
@@ -1272,6 +1300,12 @@ export function registerSocketHandlers(deps) {
 
       socket.on("passwordCheck", async (password) => {
         if (!room || !room.password) return;
+        if (typeof password !== "string") return;
+        const socketIp = getSocketIp(socket);
+        if (isPasswordRateLimited(socketIp)) {
+          socket.emit("passwordCheckFail");
+          return;
+        }
         try {
           const match = room.password.startsWith("$2b$")
             ? await bcrypt.compare(password, room.password)
@@ -1304,8 +1338,9 @@ export function registerSocketHandlers(deps) {
         }
         room.items = sanitized.items;
         updateGrid(room);
+        if (!room.grid) return;
         room.characters.forEach((character) => {
-          const [cx, cy] = character.position;
+          const [cx, cy] = character.position || [0, 0];
           if (!room.grid.isWalkableAt(cx, cy)) {
             // Only reposition if current position is now blocked
             character.path = [];
@@ -1358,7 +1393,7 @@ export function registerSocketHandlers(deps) {
         if (gx + width > maxX || gy + height > maxY) return;
 
         // Collision check - skip for walkable/wall items
-        if (!itemDef.walkable && !itemDef.wall) {
+        if (!itemDef.walkable && !itemDef.wall && room.grid) {
           for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
               if (!room.grid.isWalkableAt(gx + x, gy + y)) return;
@@ -1426,10 +1461,8 @@ export function registerSocketHandlers(deps) {
           const leavingIsBot = character?.isBot || false;
           const leavingId = socket.id;
           const roomName = room.name;
-          room.characters.splice(
-            room.characters.findIndex((character) => character.id === socket.id),
-            1
-          );
+          const dcIdx = room.characters.findIndex((c) => c.id === socket.id);
+          if (dcIdx !== -1) room.characters.splice(dcIdx, 1);
           if (room.danceTimestamps) room.danceTimestamps.delete(socket.id);
           io.to(room.id).emit("characterLeft", {
             id: leavingId,

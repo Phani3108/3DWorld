@@ -335,6 +335,8 @@ export const SocketManager = () => {
         ];
         return next.slice(-20);
       });
+      // Dispatch to Avatar for chat bubble
+      if (value && value.id) avatarDispatch.playerChatMessage.get(value.id)?.(value);
     }
 
     function onPlayerAction(value) {
@@ -344,6 +346,8 @@ export const SocketManager = () => {
       if (!sender) return;
       const type = value.action === "done" ? "item_placed" : value.action;
       addActivity(type, sender.name || "Player", sender.isBot, value.detail);
+      // Dispatch to Avatar
+      if (value && value.id) avatarDispatch.playerAction.get(value.id)?.(value);
     }
 
     function onPlayerWaveAt(value) {
@@ -352,6 +356,11 @@ export const SocketManager = () => {
       const target = chars.find((c) => c.id === value.targetId);
       if (!sender || !target) return;
       addActivity("wave_at", sender.name || "Player", sender.isBot, `waved at ${target.name || "someone"}`);
+      // Dispatch to Avatar
+      if (value && value.id) {
+        soundManager.play("wave_emote");
+        avatarDispatch.playerWaveAt.get(value.id)?.(value);
+      }
     }
 
     function onCoinsUpdate(value) {
@@ -510,7 +519,7 @@ export const SocketManager = () => {
 
     function onPlayerMove(value) {
       if (!value || !value.id) return;
-      // Use path endpoint as the destination position for proximity sorting
+      // Update position for proximity sorting
       const dest = value.path && value.path.length > 0
         ? value.path[value.path.length - 1]
         : value.position;
@@ -518,19 +527,23 @@ export const SocketManager = () => {
         pendingPositionsRef.current.set(value.id, dest);
         scheduleFlush();
       }
+      // Dispatch to individual Avatar component
+      avatarDispatch.playerMove.get(value.id)?.(value);
     }
 
     function onPlayerMoves(values) {
       if (!Array.isArray(values)) return;
-      values.forEach((v) => {
-        if (!v || !v.id) return;
+      for (let i = 0; i < values.length; i++) {
+        const v = values[i];
+        if (!v || !v.id) continue;
         const dest = v.path && v.path.length > 0
           ? v.path[v.path.length - 1]
           : v.position;
         if (dest) {
           pendingPositionsRef.current.set(v.id, dest);
         }
-      });
+        avatarDispatch.playerMove.get(v.id)?.(v);
+      }
       scheduleFlush();
     }
 
@@ -553,53 +566,25 @@ export const SocketManager = () => {
       });
     }
 
-    function onAvatarPlayerMove(value) {
-      if (!value || !value.id) return;
-      avatarDispatch.playerMove.get(value.id)?.(value);
-    }
-
-    function onAvatarPlayerMoves(values) {
-      if (!Array.isArray(values)) return;
-      for (let i = 0; i < values.length; i++) {
-        const v = values[i];
-        if (v && v.id) avatarDispatch.playerMove.get(v.id)?.(v);
-      }
-    }
-
-    function onAvatarPlayerDance(value) {
+    function onPlayerDance(value) {
       if (value && value.id) {
         soundManager.play("dance_start");
         avatarDispatch.playerDance.get(value.id)?.(value);
       }
     }
 
-    function onAvatarPlayerChatMessage(value) {
-      if (value && value.id) avatarDispatch.playerChatMessage.get(value.id)?.(value);
-    }
-
-    function onAvatarPlayerAction(value) {
-      if (value && value.id) avatarDispatch.playerAction.get(value.id)?.(value);
-    }
-
-    function onAvatarPlayerWaveAt(value) {
-      if (value && value.id) {
-        soundManager.play("wave_emote");
-        avatarDispatch.playerWaveAt.get(value.id)?.(value);
-      }
-    }
-
-    function onAvatarPlayerSit(value) {
+    function onPlayerSit(value) {
       if (value && value.id) {
         soundManager.play("sit_down");
         avatarDispatch.playerSit.get(value.id)?.(value);
       }
     }
 
-    function onAvatarPlayerUnsit(value) {
+    function onPlayerUnsit(value) {
       if (value && value.id) avatarDispatch.playerUnsit.get(value.id)?.(value);
     }
 
-    function onAvatarPlayerThinking(value) {
+    function onPlayerThinking(value) {
       if (value && value.id) avatarDispatch.playerThinking.get(value.id)?.(value);
     }
 
@@ -708,15 +693,10 @@ export const SocketManager = () => {
     socket.on("characterJoined", onCharacterJoined);
     socket.on("characterLeft", onCharacterLeft);
     socket.on("characterUpdated", onCharacterUpdated);
-    socket.on("playerMove", onAvatarPlayerMove);
-    socket.on("playerMoves", onAvatarPlayerMoves);
-    socket.on("playerDance", onAvatarPlayerDance);
-    socket.on("playerChatMessage", onAvatarPlayerChatMessage);
-    socket.on("playerAction", onAvatarPlayerAction);
-    socket.on("playerWaveAt", onAvatarPlayerWaveAt);
-    socket.on("playerSit", onAvatarPlayerSit);
-    socket.on("playerUnsit", onAvatarPlayerUnsit);
-    socket.on("playerThinking", onAvatarPlayerThinking);
+    socket.on("playerDance", onPlayerDance);
+    socket.on("playerSit", onPlayerSit);
+    socket.on("playerUnsit", onPlayerUnsit);
+    socket.on("playerThinking", onPlayerThinking);
     socket.on("agentThought", onAgentThought);
     socket.on("agentThoughts", onAgentThoughts);
     socket.on("bondUpdate", onBondUpdate);
@@ -753,15 +733,10 @@ export const SocketManager = () => {
       socket.off("characterJoined", onCharacterJoined);
       socket.off("characterLeft", onCharacterLeft);
       socket.off("characterUpdated", onCharacterUpdated);
-      socket.off("playerMove", onAvatarPlayerMove);
-      socket.off("playerMoves", onAvatarPlayerMoves);
-      socket.off("playerDance", onAvatarPlayerDance);
-      socket.off("playerChatMessage", onAvatarPlayerChatMessage);
-      socket.off("playerAction", onAvatarPlayerAction);
-      socket.off("playerWaveAt", onAvatarPlayerWaveAt);
-      socket.off("playerSit", onAvatarPlayerSit);
-      socket.off("playerUnsit", onAvatarPlayerUnsit);
-      socket.off("playerThinking", onAvatarPlayerThinking);
+      socket.off("playerDance", onPlayerDance);
+      socket.off("playerSit", onPlayerSit);
+      socket.off("playerUnsit", onPlayerUnsit);
+      socket.off("playerThinking", onPlayerThinking);
       socket.off("agentThought", onAgentThought);
       socket.off("agentThoughts", onAgentThoughts);
       socket.off("bondUpdate", onBondUpdate);

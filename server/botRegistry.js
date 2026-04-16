@@ -74,24 +74,34 @@ export const setBotRoomId = (hashedKey, roomId) => {
 export const sendWebhook = async (hashedKey, payload) => {
   const reg = botRegistry.get(hashedKey);
   if (!reg || !reg.webhookUrl) return;
-  try {
-    const body = JSON.stringify(payload);
-    const secret = reg.webhookSecret || hashedKey;
-    const signature = crypto.createHmac("sha256", secret).update(body).digest("hex");
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    await fetch(reg.webhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-MoltsLand-Signature": signature,
-      },
-      body,
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-  } catch (err) {
-    console.error(`[webhook] Failed for ${reg.name}: ${err.message}`);
+  const body = JSON.stringify(payload);
+  const secret = reg.webhookSecret || hashedKey;
+  const signature = crypto.createHmac("sha256", secret).update(body).digest("hex");
+  const MAX_RETRIES = 2;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(reg.webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-MoltsLand-Signature": signature,
+        },
+        body,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (res.ok || res.status < 500) return; // success or client error (no retry)
+      // 5xx — retry
+    } catch (err) {
+      if (attempt === MAX_RETRIES) {
+        console.error(`[webhook] Failed for ${reg.name} after ${MAX_RETRIES + 1} attempts: ${err.message}`);
+        return;
+      }
+    }
+    // Exponential backoff: 500ms, 1500ms
+    await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
   }
 };
 

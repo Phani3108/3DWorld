@@ -34,16 +34,16 @@ export const scaleZoneArea = (zoneArea, room) => {
 
 // Building footprints for large plaza rooms (world coordinates: [x, z, width, depth])
 export const getBuildingFootprints = (sz) => [
-  { x: sz[0] / 2 - 6, z: 0, w: 12, d: 10 },       // TownHall (center-north)
-  { x: 0, z: sz[1] / 2 - 5, w: 8, d: 10 },          // Apartment (west)
-  { x: sz[0] - 8, z: sz[1] / 2 - 5, w: 8, d: 10 },  // ShopBuilding (east)
+  { x: sz[0] / 2 - 6, z: 3, w: 12, d: 10 },          // TownHall (center-north)
+  { x: 3, z: sz[1] / 2 - 5, w: 8, d: 10 },            // Apartment (west)
+  { x: sz[0] - 11, z: sz[1] / 2 - 5, w: 8, d: 10 },   // ShopBuilding (east)
   { x: 7, z: 7, w: 8, d: 8 },                         // SmallBuilding (NW) — shifted to clear NW skyscraper
-  { x: sz[0] - 15, z: 7, w: 8, d: 8 },                // SmallBuilding (NE) — shifted to clear NE skyscraper
-  { x: sz[0] / 2 + 11, z: 1, w: 6, d: 6 },            // Skyscraper (beside TownHall, east side)
-  { x: 0, z: 0, w: 5, d: 5 },                         // Skyscraper (NW corner)
-  { x: sz[0] - 5, z: 0, w: 5, d: 5 },                 // Skyscraper (NE corner)
-  { x: 0, z: sz[1] - 5, w: 5, d: 5 },                 // Skyscraper (SW corner)
-  { x: sz[0] - 5, z: sz[1] - 5, w: 5, d: 5 },        // Skyscraper (SE corner)
+  { x: sz[0] - 22, z: 12, w: 8, d: 8 },                // SmallBuilding (NE) — shifted to clear NE skyscraper
+  { x: sz[0] / 2 + 11, z: 3, w: 6, d: 6 },            // Skyscraper (beside TownHall, east side)
+  { x: 3, z: 3, w: 5, d: 5 },                         // Skyscraper (NW corner)
+  { x: sz[0] - 8, z: 3, w: 5, d: 5 },                 // Skyscraper (NE corner)
+  { x: 3, z: sz[1] - 8, w: 5, d: 5 },                 // Skyscraper (SW corner)
+  { x: sz[0] - 8, z: sz[1] - 8, w: 5, d: 5 },        // Skyscraper (SE corner)
 ];
 
 // Semantic names for plaza building footprints (same order as getBuildingFootprints)
@@ -71,4 +71,34 @@ export const ZONE_ACTIONS = {
   "Bathroom": "freshen up, tidy up",
   "Office": "work, browse laptop, read books",
   "Dining": "eat, have conversations, socialize",
+};
+
+// --- Sims-style needs/motive system ---
+
+export const OBJECT_AFFORDANCES = {
+  bedDouble:        { satisfies: { energy: 50 }, duration: 8000, interruptible: true },
+  bedSingle:        { satisfies: { energy: 40 }, duration: 7000, interruptible: true },
+  kitchenStove:     { satisfies: { hunger: 40, energy: 15 }, duration: 6000, interruptible: false },
+  kitchenFridge:    { satisfies: { hunger: 20, energy: 8 }, duration: 3000, interruptible: true },
+  loungeSofa:       { satisfies: { energy: 20, fun: 10 }, duration: 5000, interruptible: true },
+  loungeChair:      { satisfies: { energy: 15 }, duration: 4000, interruptible: true },
+  televisionModern: { satisfies: { fun: 35 }, duration: 6000, interruptible: true },
+  televisionVintage:{ satisfies: { fun: 30 }, duration: 6000, interruptible: true },
+  bathtub:          { satisfies: { fun: 15, energy: 10 }, duration: 5000, interruptible: true },
+  tableCrossCloth:  { satisfies: { social: 15 }, duration: 4000, interruptible: true },
+  desk:             { satisfies: { fun: 10 }, duration: 5000, interruptible: true },
+  speaker:          { satisfies: { fun: 20 }, duration: 4000, interruptible: true },
+  eatSpot:          { satisfies: { hunger: 30, energy: 10 }, duration: 5000, interruptible: true },
+};
+
+// Decay per second — tuned so energy drains from 100→0 in ~15 minutes
+export const DECAY_RATES = { energy: 0.11, social: 0.09, fun: 0.09, hunger: 0.06 };
+
+export const MOTIVE_CLAMP = { min: 0, max: 100 };
+
+export const TRAITS = {
+  lazy:     { decayMod: { energy: 1.5 }, preferences: { bedDouble: 5, bedSingle: 5, loungeSofa: 4, televisionModern: 3 } },
+  social:   { decayMod: { social: 1.4 }, preferences: { tableCrossCloth: 5 } },
+  creative: { decayMod: { fun: 1.3 }, preferences: { desk: 4, speaker: 3 } },
+  glutton:  { decayMod: { hunger: 1.5 }, preferences: { kitchenStove: 5, kitchenFridge: 4 } },
 };

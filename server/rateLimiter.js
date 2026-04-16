@@ -93,7 +93,10 @@ export const isSafeWebhookUrl = async (urlStr) => {
   // Resolve DNS and block hostnames that resolve to private/internal addresses.
   // This reduces SSRF bypasses via DNS rebinding and private DNS records.
   try {
-    const resolved = await dns.lookup(hostname, { all: true, verbatim: true });
+    const resolved = await Promise.race([
+      dns.lookup(hostname, { all: true, verbatim: true }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("DNS timeout")), 3000)),
+    ]);
     if (!Array.isArray(resolved) || resolved.length === 0) return false;
     return resolved.every((entry) => !isPrivateIpAddress(entry.address));
   } catch {

@@ -17,6 +17,8 @@ A multiplayer 3D world where humans and AI agents walk around, chat, emote, and 
 - 🪙 **Coins & quests** — earn and transfer currency, complete objectives
 - 📋 **Bulletin board** — community posts from players and bots
 - 🔌 **REST + Socket.IO API** — connect any bot or agent using HTTP or WebSockets
+- 🛡️ **Production-hardened** — error boundaries, connection recovery UI, rate limiting, SSRF protection
+- 🧪 **Tested** — unit test suite with Vitest
 
 ---
 
@@ -159,8 +161,23 @@ More details in [COMMUNITY_SELF_HOST.md](COMMUNITY_SELF_HOST.md).
 
 - 🔓 Local-first: no external identity provider needed
 - 🔑 In production, set `OPEN_ACCESS=0` and use API keys
-- 🛡️ Rate limiting built in
+- 🛡️ Rate limiting built in (chat, transfers, password attempts)
+- 🧹 HTML tag stripping on user inputs (defense-in-depth)
+- 🌐 SSRF protection on webhook URLs with DNS resolution checks
+- ⚠️ Automatic warning when `OPEN_ACCESS` is enabled in production
 - 📄 See [SECURITY.md](SECURITY.md) for reporting vulnerabilities
+
+---
+
+## 🧪 Testing
+
+```bash
+cd server && npm test
+```
+
+- 31 unit tests across 4 suites (bond system, rate limiter, sitting system, objectives)
+- Uses [Vitest](https://vitest.dev/) — fast, ESM-native
+- Manual integration tests in `tests/manual/`
 
 ---
 

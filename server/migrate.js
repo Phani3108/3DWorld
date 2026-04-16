@@ -28,26 +28,31 @@ async function migrate() {
   const importedIds = new Set();
   let importedCount = 0;
 
-  for (const room of rooms) {
-    const isPlaza = room.id === "plaza";
-    const isGenerated = room.generated === true;
+  // Batch rooms in groups of 10 for faster migration
+  const BATCH_SIZE = 10;
+  for (let b = 0; b < rooms.length; b += BATCH_SIZE) {
+    const batch = rooms.slice(b, b + BATCH_SIZE);
+    await Promise.all(batch.map(room => {
+      const isPlaza = room.id === "plaza";
+      const isGenerated = room.generated === true;
 
-    const roomData = {
-      id: room.id,
-      name: room.name || (isPlaza ? "Town Square" : `Room ${room.id}`),
-      size: isPlaza ? PLAZA_SIZE : (room.size || [15, 15]),
-      gridDivision: room.gridDivision ?? (isPlaza ? PLAZA_GRID_DIVISION : 2),
-      items: room.items || [],
-      generated: isPlaza ? false : isGenerated,
-      claimedBy: room.claimedBy ?? null,
-      password: room.password || null,
-    };
+      const roomData = {
+        id: room.id,
+        name: room.name || (isPlaza ? "Town Square" : `Room ${room.id}`),
+        size: isPlaza ? PLAZA_SIZE : (room.size || [15, 15]),
+        gridDivision: room.gridDivision ?? (isPlaza ? PLAZA_GRID_DIVISION : 2),
+        items: room.items || [],
+        generated: isPlaza ? false : isGenerated,
+        claimedBy: room.claimedBy ?? null,
+        password: room.password || null,
+      };
 
-    await saveRoom(roomData);
-    importedIds.add(room.id);
-    importedCount++;
+      importedIds.add(room.id);
+      importedCount++;
+      return saveRoom(roomData);
+    }));
 
-    if (importedCount % 10 === 0) {
+    if (importedCount % 10 === 0 || b + BATCH_SIZE >= rooms.length) {
       console.log(`[migrate] Imported ${importedCount}/${rooms.length} rooms...`);
     }
   }

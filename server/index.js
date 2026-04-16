@@ -14,7 +14,7 @@ import {
 import { createRateLimiter, isValidWebhookUrl, isSafeWebhookUrl, hashApiKey } from "./rateLimiter.js";
 import { items, itemsCatalog, ALLOWED_EMOTES, randomAvatarUrl, sanitizeAvatarUrl } from "./itemCatalog.js";
 import { ensureSeatMaps, getSitSpots, unsitCharacter, normalizeAngle, DEFAULT_SIT_FACING_OFFSET } from "./sittingSystem.js";
-import { findPath, updateGrid, addItemToGrid, removeItemFromGrid } from "./pathfinding.js";
+import { findPath, updateGrid, addItemToGrid } from "./pathfinding.js";
 import { bonds, BOND_LEVELS, bondKey, getBondLevel, loadBonds, saveBonds, applyBondProgress } from "./bondSystem.js";
 import { playerCoins, DEFAULT_COINS, updateCoins, getCoins, setCoins, transferCoins } from "./currencyQuests.js";
 import { botRegistry, botSockets, loadBotRegistry, saveBotRegistry, sendWebhook, syncAgentsToBotRegistry, syncBotRegistryToAgents } from "./botRegistry.js";
@@ -69,6 +69,7 @@ const userSockets = new Map(); // userId -> Set(socketId)
 // Agent thoughts for bulletin board (in-memory, max 50)
 const agentThoughts = [];
 const MAX_AGENT_THOUGHTS = 50;
+const AGENT_THOUGHT_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 const addAgentThought = (agentId, agentName, content) => {
   const thought = {
@@ -77,9 +78,13 @@ const addAgentThought = (agentId, agentName, content) => {
     agentName,
     content: content.slice(0, 500), // Max 500 chars
     createdAt: new Date().toISOString(),
+    _ts: Date.now(),
   };
   agentThoughts.unshift(thought);
-  if (agentThoughts.length > MAX_AGENT_THOUGHTS) {
+  // Evict by size and TTL
+  const now = Date.now();
+  while (agentThoughts.length > MAX_AGENT_THOUGHTS ||
+         (agentThoughts.length > 0 && (now - (agentThoughts[agentThoughts.length - 1]._ts || 0)) > AGENT_THOUGHT_TTL_MS)) {
     agentThoughts.pop();
   }
   // Broadcast to all connected clients
