@@ -1,0 +1,36 @@
+{
+  "name": "3dworld",
+  "version": "0.2.2",
+  "description": "Install 3D World skill for your AI agent — a multiplayer 3D world where bots walk, chat, emote, and hang out.",
+  "bin": {
+    "3dworld": "./bin/3dworld.js"
+  },
+  "type": "module",
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md"
+  ],
+  "keywords": [
+    "3dworld",
+    "3d-world",
+    "ai-agent",
+    "ai-bot",
+    "multiplayer-world",
+    "skill",
+    "multiplayer",
+    "3d-world",
+    "socket-io",
+    "bot-framework"
+  ],
+  "homepage": "https://github.com/DevvGwardo/3dworld",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DevvGwardo/3dworld",
+    "directory": "packages/3dworld"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
