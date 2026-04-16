@@ -191,12 +191,6 @@ cd server && npm test
 
 ---
 
-## 🙏 Acknowledgments
-
-Client bootstrapped from [wass08/r3f-vite-starter](https://github.com/wass08/r3f-vite-starter) by [Wawa Sensei](https://github.com/wass08) (CC0-1.0).
-
----
-
 ## 📄 License
 
 MIT — see [LICENSE](LICENSE)
