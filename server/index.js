@@ -19,7 +19,8 @@ import { findPath, updateGrid, addItemToGrid } from "./pathfinding.js";
 import { bonds, BOND_LEVELS, bondKey, getBondLevel, loadBonds, saveBonds, applyBondProgress } from "./bondSystem.js";
 import { playerCoins, DEFAULT_COINS, updateCoins, getCoins, setCoins, transferCoins } from "./currencyQuests.js";
 import { botRegistry, botSockets, loadBotRegistry, saveBotRegistry, sendWebhook, syncAgentsToBotRegistry, syncBotRegistryToAgents } from "./botRegistry.js";
-import { loadUserStore, loadCompletedQuests, ensureUser, getUser, createUserId, touchUser, validateSessionToken, setSessionToken, createSessionToken } from "./userStore.js";
+import { loadUserStore, loadCompletedQuests, ensureUser, getUser, createUserId, touchUser, validateSessionToken, setSessionToken, createSessionToken, updateProfile } from "./userStore.js";
+import { spawnResidents, startResidentTick } from "./residentService.js";
 import { initObjectives, checkBondMilestones, objectivesPayload, cleanupObjectives } from "./objectiveSystem.js";
 import { createHttpHandler } from "./httpRoutes.js";
 import { registerSocketHandlers } from "./socketHandlers.js";
@@ -329,6 +330,14 @@ const seedCityRooms = () => {
 await loadRooms();
 seedCityRooms();
 
+// Spawn named residents into each city room — runs before io exists so
+// the ambient tick is started after io is constructed below.
+await spawnResidents({
+  rooms, botRegistry, saveBotRegistry,
+  ensureUser, updateProfile,
+  getCachedRoom, updateGrid,
+});
+
 // --- Create HTTP server + Socket.IO ---
 const broadcastToRoom = (roomId, event, data) => {
   io.to(roomId).emit(event, data);
@@ -361,6 +370,9 @@ const io = new Server(httpServer, {
 // Patch the io reference into httpHandler's deps (it was null during construction)
 // The httpHandler closure captures deps by reference, so we mutate the object.
 httpHandler._deps.io = io;
+
+// Start resident ambient behaviour (greetings, small drifts, chatter).
+startResidentTick({ io, rooms, getCachedRoom });
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT);

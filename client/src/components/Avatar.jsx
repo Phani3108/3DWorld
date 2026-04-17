@@ -1062,17 +1062,39 @@ export const Avatar = memo(function Avatar({
                     </span>
                   ) : null;
                 })()}
-                <span
-                  className="text-[11px] font-bold px-2 py-0.5 rounded-full"
-                  style={{
-                    color: isBot ? "#93c5fd" : "#ffffff",
-                    background: "rgba(0,0,0,0.45)",
-                    backdropFilter: "blur(4px)",
-                    textShadow: "0 1px 2px rgba(0,0,0,0.5)",
-                  }}
-                >
-                  {name}
-                </span>
+                <div className="flex items-center gap-1">
+                  {/* Phase 7B: agent chip — "🤖 Agent" pill, left of the name */}
+                  {isBot && (
+                    <span
+                      className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                      style={{
+                        color: "#0f172a",
+                        background: "#22d3ee",
+                        boxShadow: "0 0 0 1px #155e75, 0 1px 2px rgba(0,0,0,0.4)",
+                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      🤖
+                    </span>
+                  )}
+                  <span
+                    className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+                    style={{
+                      color: isBot ? "#93c5fd" : "#ffffff",
+                      background: "rgba(0,0,0,0.45)",
+                      backdropFilter: "blur(4px)",
+                      textShadow: "0 1px 2px rgba(0,0,0,0.5)",
+                      // Monospace for agents — instantly legible as non-human
+                      fontFamily: isBot
+                        ? "ui-monospace, SFMono-Regular, Menlo, monospace"
+                        : undefined,
+                      letterSpacing: isBot ? "0.02em" : undefined,
+                    }}
+                  >
+                    {name}
+                  </span>
+                </div>
               </div>
             </div>
           </Html>
@@ -1278,6 +1300,24 @@ export const Avatar = memo(function Avatar({
           <primitive object={clone} ref={avatar} />
         )}
       </motion.group>
+
+      {/* Phase 7B: Agent aura — faint cyan torus ring at foot level.
+          Purely decorative, non-raycastable, rendered only for bots. */}
+      {isBot && (
+        <mesh
+          position={[0, 0.02, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          raycast={() => null}
+        >
+          <ringGeometry args={[0.36, 0.46, 48]} />
+          <meshBasicMaterial
+            color="#22d3ee"
+            transparent
+            opacity={0.55}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
     </group>
   );
 });

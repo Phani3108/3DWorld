@@ -13,6 +13,8 @@ import { createQuestion, claimAnswer, getPendingForBot } from "./knowledgeServic
 import { publicLanguage, LANGUAGES } from "./shared/languageCatalog.js";
 import { getVenue, publicVenue, venuesInCity, allVenuesPublic, matchCannedAnswer } from "./shared/venueCatalog.js";
 import { findVenueAt, cityIdFromRoom } from "./venueService.js";
+import { allResidentsPublic, publicResident, residentsInCity, getResident } from "./shared/residentCatalog.js";
+import { findResidentCharacter } from "./residentService.js";
 
 export const createHttpHandler = (deps) => {
   const {
@@ -1015,6 +1017,21 @@ Want to build your own space? Each bot gets **one room** — here's how:
       return json(res, 200, LANGUAGES);
     }
 
+    // Residents (Phase 7)
+    if (req.method === "GET" && req.url === "/api/v1/residents") {
+      return json(res, 200, allResidentsPublic());
+    }
+    const residentByIdMatch = req.url?.match(/^\/api\/v1\/residents\/([a-z0-9_-]+)$/);
+    if (req.method === "GET" && residentByIdMatch) {
+      const r = getResident(residentByIdMatch[1]);
+      if (!r) return json(res, 404, { error: "resident_not_found" });
+      return json(res, 200, publicResident(r));
+    }
+    const residentsByCityMatch = req.url?.match(/^\/api\/v1\/cities\/([a-z0-9_-]+)\/residents$/);
+    if (req.method === "GET" && residentsByCityMatch) {
+      return json(res, 200, residentsInCity(residentsByCityMatch[1]).map(publicResident));
+    }
+
     // Venues
     if (req.method === "GET" && req.url === "/api/v1/venues") {
       return json(res, 200, allVenuesPublic());
@@ -1056,7 +1073,7 @@ Want to build your own space? Each bot gets **one room** — here's how:
     }
 
     // Public profile by userId (read-only, HTML-stripped, no tokens)
-    const profileMatch = req.url?.match(/^\/api\/v1\/users\/([A-Za-z0-9-]+)\/profile$/);
+    const profileMatch = req.url?.match(/^\/api\/v1\/users\/([A-Za-z0-9_-]+)\/profile$/);
     if (req.method === "GET" && profileMatch) {
       const u = await getUser(profileMatch[1]);
       if (!u) return json(res, 404, { error: "user_not_found" });
@@ -1357,11 +1374,15 @@ Want to build your own space? Each bot gets **one room** — here's how:
       if (!hasLiveWebhook && venue) {
         const match = matchCannedAnswer(venue, question);
         if (match) {
-          // Broadcast as a chat bubble from the venue host (so it feels in-world).
+          // Prefer the in-world resident's character id so the bubble appears
+          // above them; fall back to a synthetic venue:<id> if no resident.
+          const residentHit = findResidentCharacter({ toBotId, getCachedRoom });
+          const emitId = residentHit?.character?.id || `venue:${venue.id}`;
+          const emitName = residentHit?.resident?.name || venue.name;
           if (deps.io) {
             deps.io.to(roomId).emit("playerChatMessage", {
-              id: `venue:${venue.id}`,
-              name: venue.name,
+              id: emitId,
+              name: emitName,
               message: `@${fromName || "friend"} — ${match.answer}`,
             });
           }
@@ -1372,12 +1393,22 @@ Want to build your own space? Each bot gets **one room** — here's how:
             id: factId,
             question: question.slice(0, 500),
             answer: match.answer,
-            fromBotId: venue.host || venue.id,
-            fromBotName: venue.name,
+            // Attribute to the resident when we found them in-world; otherwise
+            // fall back to the venue metadata (pre-7A behaviour).
+            fromBotId:   residentHit?.resident?.id   || venue.host || venue.id,
+            fromBotName: residentHit?.resident?.name || venue.name,
+            fromVenueId: venue.id,
+            fromVenueName: venue.name,
             cityId: venue.cityId,
             learnedAt: Date.now(),
           };
           await appendToUserList(fromUserId, "learnedFacts", fact, 200);
+          // Bump the resident's teaching counter so "🎓 has taught N times"
+          // accrues just like for LLM-backed bots.
+          if (residentHit?.resident?.id) {
+            const { incrementTeachingCount } = await import("./userStore.js");
+            await incrementTeachingCount(residentHit.resident.id);
+          }
           addToFeed({
             type: "fact",
             actorUserId: fromUserId,
