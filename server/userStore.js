@@ -3,6 +3,9 @@
 import fs from "fs";
 import crypto from "crypto";
 import * as db from "./db.js";
+import { sanitizeAvatarUrl, sanitizeAccentId, DEFAULT_ACCENT_ID, getAvatarById, AVATAR_CATALOG } from "./itemCatalog.js";
+import { getCity } from "./shared/cityCatalog.js";
+import { atomicWriteJson, pushCapped } from "./persistence.js";
 
 const {
   isDbAvailable,
@@ -42,7 +45,33 @@ export const createSessionToken = () => {
 const persistUsers = () => {
   if (isDbAvailable()) return;
   const payload = [...users.values()];
-  fs.writeFileSync(USERS_FILE, JSON.stringify(payload, null, 2));
+  atomicWriteJson(USERS_FILE, payload);
+};
+
+// ── Motives (Sims-style needs) defaults ─────────────────────────────
+// Applied to every user record so humans get the same mechanic that bots
+// already have via shared/roomConstants.js OBJECT_AFFORDANCES.
+const DEFAULT_MOTIVES = { energy: 100, hunger: 100, fun: 100, social: 100 };
+
+// ── Public-profile fields every user record should have ────────────
+// New fields default to null/empty so pre-existing records stay valid.
+const ensureProfileDefaults = (user) => {
+  if (!user) return user;
+  if (user.avatarId === undefined) user.avatarId = null;
+  if (user.avatarUrl === undefined) user.avatarUrl = null;
+  if (user.accentId === undefined) user.accentId = DEFAULT_ACCENT_ID;
+  if (user.pronouns === undefined) user.pronouns = "";
+  if (user.bio === undefined) user.bio = "";
+  if (user.homeCity === undefined) user.homeCity = null;
+  if (!user.socials) user.socials = {};
+  if (!Array.isArray(user.stories)) user.stories = [];
+  if (!Array.isArray(user.memories)) user.memories = [];
+  if (!Array.isArray(user.learnedFacts)) user.learnedFacts = [];
+  if (!user.dailyQuestState) user.dailyQuestState = { day: "", completed: [] };
+  if (!user.motives) user.motives = { ...DEFAULT_MOTIVES, updatedAt: Date.now() };
+  if (!user.inventory) user.inventory = { food: [] };
+  if (user.teachingCount === undefined) user.teachingCount = 0;
+  return user;
 };
 
 export const loadUserStore = () => {
@@ -58,6 +87,7 @@ export const loadUserStore = () => {
           u.sessionToken = hashSessionToken(u.sessionToken);
           migratedTokens = true;
         }
+        ensureProfileDefaults(u);
         users.set(u.id, u);
       });
     }
@@ -95,7 +125,7 @@ export const ensureUser = async ({ userId, name = null, isBot = false } = {}) =>
   if (!existing) {
     const createdAt = nowMs();
     const sessionToken = createSessionToken();
-    const record = {
+    const record = ensureProfileDefaults({
       id: userId,
       name: name || null,
       isBot: !!isBot,
@@ -104,11 +134,12 @@ export const ensureUser = async ({ userId, name = null, isBot = false } = {}) =>
       createdAt,
       updatedAt: createdAt,
       lastSeenAt: createdAt,
-    };
+    });
     users.set(userId, record);
     persistUsers();
     return record;
   }
+  ensureProfileDefaults(existing);
 
   let changed = false;
   if (name && existing.name !== name) {
@@ -278,4 +309,141 @@ export const recordCompletedQuest = async (userId, questId, reward) => {
   const key = `${userId}-${questId}`;
   completedQuests.set(key, { userId, questId, reward, completedAt: Date.now() });
   persistCompletedQuests();
+};
+
+// --- Profile (v2) --------------------------------------------------------
+// HTML strip — defense-in-depth; React escapes on render.
+const stripHtml = (s) => (typeof s === "string" ? s.replace(/<[^>]*>/g, "") : s);
+const clampStr = (s, n) => (typeof s === "string" ? s.slice(0, n) : "");
+
+// Social-handle validators — invalid handles are silently dropped.
+const SOCIAL_VALIDATORS = {
+  twitter:   (v) => { const s = clampStr(String(v).replace(/^@/, ""), 30); return /^[A-Za-z0-9_]{1,15}$/.test(s) ? s : null; },
+  instagram: (v) => { const s = clampStr(String(v).replace(/^@/, ""), 40); return /^[A-Za-z0-9._]{1,30}$/.test(s) ? s : null; },
+  github:    (v) => { const s = clampStr(String(v).replace(/^@/, ""), 50); return /^[A-Za-z0-9-]{1,39}$/.test(s) ? s : null; },
+  linkedin:  (v) => { const s = clampStr(String(v).replace(/^@?in\//, "").replace(/^@/, ""), 60); return /^[A-Za-z0-9-]{3,100}$/.test(s) ? s : null; },
+  website:   (v) => {
+    try {
+      const u = new URL(String(v));
+      if (u.protocol !== "https:") return null;
+      if (/^(10\.|127\.|192\.168\.|169\.254\.|0\.0\.0\.0)/.test(u.hostname)) return null;
+      return u.href.slice(0, 200);
+    } catch { return null; }
+  },
+  farcaster: (v) => { const s = clampStr(String(v).replace(/^@/, ""), 40); return /^[A-Za-z0-9._-]{1,30}$/.test(s) ? s : null; },
+};
+
+const sanitizeSocials = (socials) => {
+  if (!socials || typeof socials !== "object") return {};
+  const out = {};
+  for (const [k, v] of Object.entries(socials)) {
+    const validator = SOCIAL_VALIDATORS[k];
+    if (!validator) continue;
+    const normalized = validator(v);
+    if (normalized) out[k] = normalized;
+  }
+  return out;
+};
+
+/**
+ * Patch a user's profile fields. Only file-backed for now — callers on the
+ * DB path can extend `db.js` later. Missing / invalid values in `patch` are
+ * ignored rather than cleared (so callers can send partial updates).
+ *
+ * @param {string} userId
+ * @param {{
+ *   avatarId?: string, avatarUrl?: string,
+ *   accentId?: string, pronouns?: string, bio?: string,
+ *   homeCity?: string, socials?: object,
+ * }} patch
+ * @returns {object|null} updated record (public projection safe)
+ */
+export const updateProfile = async (userId, patch = {}) => {
+  if (!userId || !patch || typeof patch !== "object") return null;
+
+  // File-backed path
+  const existing = users.get(userId);
+  if (!existing) return null;
+  ensureProfileDefaults(existing);
+
+  if (typeof patch.avatarId === "string") {
+    const entry = getAvatarById(patch.avatarId);
+    if (entry) {
+      existing.avatarId = entry.id;
+      existing.avatarUrl = entry.url;
+    }
+  }
+  if (typeof patch.avatarUrl === "string") {
+    const clean = sanitizeAvatarUrl(patch.avatarUrl);
+    existing.avatarUrl = clean;
+    // If URL matches a catalog entry, record its id too.
+    const match = AVATAR_CATALOG.find((a) => a.url === clean);
+    existing.avatarId = match ? match.id : existing.avatarId || null;
+  }
+  if (typeof patch.accentId === "string") existing.accentId = sanitizeAccentId(patch.accentId);
+  if (typeof patch.pronouns === "string") existing.pronouns = clampStr(stripHtml(patch.pronouns), 30);
+  if (typeof patch.bio === "string")      existing.bio      = clampStr(stripHtml(patch.bio), 200);
+  if (typeof patch.homeCity === "string") {
+    const c = getCity(patch.homeCity);
+    if (c) existing.homeCity = c.id;
+  }
+  if (patch.socials && typeof patch.socials === "object") {
+    existing.socials = { ...existing.socials, ...sanitizeSocials(patch.socials) };
+  }
+
+  existing.updatedAt = nowMs();
+  persistUsers();
+  return existing;
+};
+
+/**
+ * Public-safe projection of a user record. Never returns tokens / emails.
+ * Trims stories / memories / learnedFacts to the count requested.
+ */
+export const publicProfile = (user, { storyLimit = 20, memoryLimit = 30, factLimit = 30 } = {}) => {
+  if (!user) return null;
+  ensureProfileDefaults(user);
+  return {
+    id: user.id,
+    name: user.name,
+    isBot: !!user.isBot,
+    avatarId: user.avatarId,
+    avatarUrl: user.avatarUrl,
+    accentId: user.accentId || DEFAULT_ACCENT_ID,
+    pronouns: user.pronouns || "",
+    bio: user.bio || "",
+    homeCity: user.homeCity || null,
+    socials: user.socials || {},
+    stats: {
+      coins: user.coins,
+      storyCount: (user.stories || []).length,
+      memoryCount: (user.memories || []).length,
+      factCount: (user.learnedFacts || []).length,
+      teachingCount: user.teachingCount || 0,
+    },
+    stories:      (user.stories      || []).slice(0, storyLimit),
+    memories:     (user.memories     || []).slice(0, memoryLimit),
+    learnedFacts: (user.learnedFacts || []).slice(0, factLimit),
+    createdAt: user.createdAt,
+  };
+};
+
+/** Accessor used by story/memory/fact endpoints to push capped entries. */
+export const appendToUserList = async (userId, field, item, cap) => {
+  if (!userId || !field || !item) return null;
+  if (isDbAvailable()) return null; // DB path deferred
+  const existing = users.get(userId);
+  if (!existing) return null;
+  ensureProfileDefaults(existing);
+  if (!Array.isArray(existing[field])) existing[field] = [];
+  pushCapped(existing[field], item, cap);
+  existing.updatedAt = nowMs();
+  persistUsers();
+  return item;
+};
+
+/** Read-only list of all users' public profiles (for bulletin / world feed). */
+export const listPublicProfiles = () => {
+  if (isDbAvailable()) return [];
+  return [...users.values()].map((u) => publicProfile(u));
 };

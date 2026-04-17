@@ -1,6 +1,10 @@
 import crypto from "crypto";
 import pathfinding from "pathfinding";
 import * as db from "./db.js";
+import { listCitiesPublic, getCity, publicCity } from "./shared/cityCatalog.js";
+import { FOOD_CATALOG, foodsForCity, getFood } from "./foodCatalog.js";
+import { AVATAR_CATALOG, ACCENT_COLORS } from "./itemCatalog.js";
+import { getUser, publicProfile, updateProfile } from "./userStore.js";
 
 export const createHttpHandler = (deps) => {
   const {
@@ -945,6 +949,49 @@ Want to build your own space? Each bot gets **one room** — here's how:
         ),
       };
       return json(res, 200, health);
+    }
+
+    // --- Catalog endpoints (Phase 1 — public, no auth) ---
+    // Cities
+    if (req.method === "GET" && req.url === "/api/v1/cities") {
+      return json(res, 200, listCitiesPublic());
+    }
+    const cityMatch = req.url?.match(/^\/api\/v1\/cities\/([a-z0-9_-]+)$/);
+    if (req.method === "GET" && cityMatch) {
+      const city = getCity(cityMatch[1]);
+      if (!city) return json(res, 404, { error: "city_not_found" });
+      return json(res, 200, publicCity(city));
+    }
+
+    // Food
+    if (req.method === "GET" && req.url === "/api/v1/food") {
+      return json(res, 200, Object.values(FOOD_CATALOG));
+    }
+    const foodByCityMatch = req.url?.match(/^\/api\/v1\/food\/city\/([a-z0-9_-]+)$/);
+    if (req.method === "GET" && foodByCityMatch) {
+      return json(res, 200, foodsForCity(foodByCityMatch[1]));
+    }
+    const foodByIdMatch = req.url?.match(/^\/api\/v1\/food\/([a-zA-Z0-9_-]+)$/);
+    if (req.method === "GET" && foodByIdMatch && foodByIdMatch[1] !== "city") {
+      const food = getFood(foodByIdMatch[1]);
+      if (!food) return json(res, 404, { error: "food_not_found" });
+      return json(res, 200, food);
+    }
+
+    // Avatars & Accents
+    if (req.method === "GET" && req.url === "/api/v1/avatars") {
+      return json(res, 200, AVATAR_CATALOG);
+    }
+    if (req.method === "GET" && req.url === "/api/v1/accents") {
+      return json(res, 200, ACCENT_COLORS);
+    }
+
+    // Public profile by userId (read-only, HTML-stripped, no tokens)
+    const profileMatch = req.url?.match(/^\/api\/v1\/users\/([A-Za-z0-9-]+)\/profile$/);
+    if (req.method === "GET" && profileMatch) {
+      const u = await getUser(profileMatch[1]);
+      if (!u) return json(res, 404, { error: "user_not_found" });
+      return json(res, 200, publicProfile(u));
     }
 
     // --- Legacy claim URLs (verification flow removed) ---
