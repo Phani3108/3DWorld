@@ -5,6 +5,7 @@ import { listCitiesPublic, getCity, publicCity } from "./shared/cityCatalog.js";
 import { FOOD_CATALOG, foodsForCity, getFood } from "./foodCatalog.js";
 import { AVATAR_CATALOG, ACCENT_COLORS } from "./itemCatalog.js";
 import { getUser, publicProfile, updateProfile } from "./userStore.js";
+import { EMOJI_REACTIONS, MEME_LIBRARY } from "./reactionCatalog.js";
 
 export const createHttpHandler = (deps) => {
   const {
@@ -984,6 +985,14 @@ Want to build your own space? Each bot gets **one room** — here's how:
     }
     if (req.method === "GET" && req.url === "/api/v1/accents") {
       return json(res, 200, ACCENT_COLORS);
+    }
+
+    // Reactions (emoji + meme catalogs)
+    if (req.method === "GET" && req.url === "/api/v1/reactions/emojis") {
+      return json(res, 200, EMOJI_REACTIONS);
+    }
+    if (req.method === "GET" && req.url === "/api/v1/reactions/memes") {
+      return json(res, 200, MEME_LIBRARY);
     }
 
     // Public profile by userId (read-only, HTML-stripped, no tokens)
