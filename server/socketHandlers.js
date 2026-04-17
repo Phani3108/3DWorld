@@ -1,5 +1,7 @@
 import bcrypt from "bcrypt";
 import { listCitiesPublic } from "./shared/cityCatalog.js";
+import { sanitizeReaction } from "./reactionCatalog.js";
+import { getFood } from "./foodCatalog.js";
 
 // Build a keyed map once — avoids re-projecting on every welcome event.
 const CITIES_PUBLIC = Object.fromEntries(
@@ -844,6 +846,69 @@ export function registerSocketHandlers(deps) {
             cooldownMs: 12000,
           });
         }
+      });
+
+      // ── Phase 4: Reactions (emoji / meme) — shared human+agent vocabulary
+      socket.on("reaction", async (payload) => {
+        if (!room) return;
+        // Reuse the chat rate-limit bucket — reactions have the same noise profile.
+        const ip = getSocketIp(socket);
+        if (limitChat(ip)) return;
+
+        const clean = sanitizeReaction(payload);
+        if (!clean) return;
+
+        io.to(room.id).emit("characterReaction", {
+          id: socket.id,
+          type: clean.type,
+          value: clean.value,
+        });
+
+        // Small bond nudge to nearby characters — reacting near someone counts
+        // as a light social gesture (same shape as `emote:play`).
+        const nearby = room.characters.filter((c) => {
+          if (!c || c.id === socket.id || !c.name) return false;
+          return gridDistance(character?.position, c.position) <= 6;
+        });
+        for (const peer of nearby) {
+          await emitBondProgress({
+            targetCharacter: peer,
+            eventType: "reaction",
+            baseDelta: 0.2,
+            cooldownMs: 20000,
+          });
+        }
+      });
+
+      // ── Phase 4: Eat — consume an inventory item, apply motives, broadcast
+      socket.on("eat", async (foodId) => {
+        if (!room) return;
+        if (typeof foodId !== "string") return;
+        const food = getFood(foodId);
+        if (!food) return;
+
+        const userId = character?.userId;
+        if (!userId) return;
+
+        // Try to remove one matching token from the user's inventory.
+        const { removeFromInventory, applyMotives } = await import("./userStore.js");
+        const ok = await removeFromInventory(userId, "food", foodId);
+        if (!ok) {
+          socket.emit("eatError", { error: "not_in_inventory", foodId });
+          return;
+        }
+
+        // Apply the motive satisfaction.
+        const motives = await applyMotives(userId, food.satisfies || {});
+        if (motives) socket.emit("motivesUpdate", motives);
+
+        // Broadcast to the room so everyone sees the food emoji bubble.
+        io.to(room.id).emit("characterEating", {
+          id: socket.id,
+          foodId,
+          emoji: food.emoji,
+          duration: food.duration,
+        });
       });
 
       socket.on("wave:at", async (targetId) => {

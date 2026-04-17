@@ -447,3 +447,111 @@ export const listPublicProfiles = () => {
   if (isDbAvailable()) return [];
   return [...users.values()].map((u) => publicProfile(u));
 };
+
+// --- Motives (Sims-style needs) ------------------------------------------
+// Decay is applied lazily: every mutation computes the decay since the last
+// update before writing. This avoids a separate cron and is deterministic.
+const MOTIVE_DECAY_PER_SEC = { energy: 0.11, social: 0.09, fun: 0.09, hunger: 0.06 };
+const MOTIVE_CLAMP = { min: 0, max: 100 };
+const clampMotive = (v) => Math.max(MOTIVE_CLAMP.min, Math.min(MOTIVE_CLAMP.max, v));
+
+const applyLazyDecay = (user, now = Date.now()) => {
+  if (!user.motives) user.motives = { energy: 100, hunger: 100, fun: 100, social: 100, updatedAt: now };
+  const last = user.motives.updatedAt || now;
+  const elapsedSec = Math.max(0, (now - last) / 1000);
+  if (elapsedSec <= 0) return user.motives;
+  for (const key of Object.keys(MOTIVE_DECAY_PER_SEC)) {
+    const cur = typeof user.motives[key] === "number" ? user.motives[key] : 100;
+    user.motives[key] = clampMotive(Math.round((cur - MOTIVE_DECAY_PER_SEC[key] * elapsedSec) * 100) / 100);
+  }
+  user.motives.updatedAt = now;
+  return user.motives;
+};
+
+/**
+ * Read current motives (with lazy decay applied). Does NOT persist.
+ * Callers that want to persist should call `persistUsers()` afterwards.
+ */
+export const peekMotives = async (userId) => {
+  if (!userId) return null;
+  if (isDbAvailable()) return null;
+  const user = users.get(userId);
+  if (!user) return null;
+  ensureProfileDefaults(user);
+  return applyLazyDecay(user);
+};
+
+/**
+ * Apply a `satisfies` delta (e.g. eating biryani → hunger +40) after lazy
+ * decay. Clamps to [0,100] and persists.
+ * @param {string} userId
+ * @param {Record<"energy"|"hunger"|"fun"|"social", number>} delta
+ * @returns motives object or null
+ */
+export const applyMotives = async (userId, delta) => {
+  if (!userId || !delta) return null;
+  if (isDbAvailable()) return null;
+  const user = users.get(userId);
+  if (!user) return null;
+  ensureProfileDefaults(user);
+  applyLazyDecay(user);
+  for (const [key, amount] of Object.entries(delta)) {
+    if (typeof amount !== "number") continue;
+    if (!(key in MOTIVE_DECAY_PER_SEC)) continue;
+    user.motives[key] = clampMotive(user.motives[key] + amount);
+  }
+  user.motives.updatedAt = Date.now();
+  user.updatedAt = user.motives.updatedAt;
+  persistUsers();
+  return user.motives;
+};
+
+// --- Inventory -----------------------------------------------------------
+// inventory.food is an append-only list of tokens like `{ id, foodId, boughtAt }`.
+// Eating removes one matching token. Capped so a buggy bot can't bloat the file.
+const INVENTORY_FOOD_CAP = 50;
+
+export const addToInventory = async (userId, bucket, item) => {
+  if (!userId || !bucket || !item) return null;
+  if (isDbAvailable()) return null;
+  const user = users.get(userId);
+  if (!user) return null;
+  ensureProfileDefaults(user);
+  if (!user.inventory[bucket]) user.inventory[bucket] = [];
+  if (user.inventory[bucket].length >= INVENTORY_FOOD_CAP) {
+    return { ok: false, error: "inventory_full" };
+  }
+  user.inventory[bucket].push(item);
+  user.updatedAt = Date.now();
+  persistUsers();
+  return { ok: true, item };
+};
+
+/**
+ * Remove the first inventory entry whose `foodId` matches. Returns true on
+ * success, false if no matching entry exists.
+ */
+export const removeFromInventory = async (userId, bucket, foodId) => {
+  if (!userId || !bucket || !foodId) return false;
+  if (isDbAvailable()) return false;
+  const user = users.get(userId);
+  if (!user) return false;
+  ensureProfileDefaults(user);
+  const list = user.inventory[bucket] || [];
+  const idx = list.findIndex((i) => i && i.foodId === foodId);
+  if (idx < 0) return false;
+  list.splice(idx, 1);
+  user.updatedAt = Date.now();
+  persistUsers();
+  return true;
+};
+
+/** Read the inventory for a user (no side effects). */
+export const getInventory = async (userId) => {
+  if (!userId) return null;
+  if (isDbAvailable()) return null;
+  const user = users.get(userId);
+  if (!user) return null;
+  ensureProfileDefaults(user);
+  return user.inventory;
+};

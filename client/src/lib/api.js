@@ -49,3 +49,7 @@ export const fetchProfile = (userId) =>
 
 export const updateProfile = (userId, patch) =>
   postJSON(`/api/v1/users/${encodeURIComponent(userId)}/profile`, patch);
+
+// ── Food (Phase 4) ──────────────────────────────────────────────────
+export const buyFood = (userId, foodId) =>
+  postJSON("/api/v1/food/buy", { userId, foodId });

@@ -17,6 +17,7 @@ export const createHttpHandler = (deps) => {
     pendingInvites, DEV_MODE, OPEN_ACCESS = false,
     TRUST_PROXY = false,
     addAgentThought,
+    userSockets,
   } = deps;
   // io is accessed via deps.io so it can be patched after construction
   const DEFAULT_MAX_JSON_BODY_BYTES = 1024 * 1024; // 1MB
@@ -1024,6 +1025,76 @@ Want to build your own space? Each bot gets **one room** — here's how:
       const updated = await updateProfile(userId, patch);
       if (!updated) return json(res, 500, { error: "update_failed" });
       return json(res, 200, publicProfile(updated));
+    }
+
+    // ── Phase 4: Food — buy (deduct coins, add to inventory) ─────────
+    if (req.method === "POST" && req.url === "/api/v1/food/buy") {
+      let payload;
+      try { payload = await readBody(req); }
+      catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
+      const { userId, foodId } = payload || {};
+      if (typeof userId !== "string" || typeof foodId !== "string") {
+        return json(res, 400, { error: "missing_fields" });
+      }
+      const food = getFood(foodId);
+      if (!food) return json(res, 404, { error: "food_not_found" });
+      const { getUser, updateUserCoins, addToInventory } = await import("./userStore.js");
+      const user = await getUser(userId);
+      if (!user) return json(res, 404, { error: "user_not_found" });
+      const coins = typeof user.coins === "number" ? user.coins : 0;
+      if (coins < food.price) {
+        return json(res, 400, { error: "insufficient_coins", have: coins, need: food.price });
+      }
+      // Deduct coins atomically-ish (single-server file-backed is OK here).
+      const newBalance = await updateUserCoins(userId, -food.price);
+      if (typeof newBalance !== "number") {
+        return json(res, 500, { error: "coins_update_failed" });
+      }
+      const token = {
+        id: crypto.randomUUID ? crypto.randomUUID() : `tok_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        foodId,
+        boughtAt: Date.now(),
+      };
+      const addResult = await addToInventory(userId, "food", token);
+      if (!addResult || addResult.ok === false) {
+        // Refund on inventory failure
+        await updateUserCoins(userId, food.price);
+        return json(res, 400, { error: (addResult && addResult.error) || "inventory_failed" });
+      }
+      // Push coin update to any sockets the user has open (best-effort).
+      const sockets = userSockets?.get?.(userId);
+      if (sockets && deps.io) {
+        for (const sid of sockets) {
+          deps.io.to(sid).emit("coinsUpdate", { coins: newBalance });
+        }
+      }
+      return json(res, 200, { ok: true, token, coins: newBalance, food });
+    }
+
+    // ── Phase 4: Bot reaction REST mirror ─────────────────────────────
+    const reactMatch = req.url?.match(/^\/api\/v1\/rooms\/([^/]+)\/reaction$/);
+    if (req.method === "POST" && reactMatch) {
+      let payload;
+      try { payload = await readBody(req); }
+      catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
+      const { sanitizeReaction } = await import("./reactionCatalog.js");
+      const clean = sanitizeReaction(payload);
+      if (!clean) return json(res, 400, { error: "invalid_reaction" });
+      const roomId = reactMatch[1];
+      const room = getCachedRoom(roomId);
+      if (!room) return json(res, 404, { error: "room_not_found" });
+      // Best effort: use the authenticated bot's socket id if available.
+      const botKey = req.headers["x-api-key"] || req.headers["authorization"]?.replace(/^Bearer /i, "");
+      const hashed = botKey ? hashApiKey(String(botKey)) : null;
+      const botSocketId = hashed ? botSockets?.get?.(hashed) : null;
+      if (deps.io) {
+        deps.io.to(roomId).emit("characterReaction", {
+          id: botSocketId || `bot:${hashed?.slice(0, 6) || "unknown"}`,
+          type: clean.type,
+          value: clean.value,
+        });
+      }
+      return json(res, 200, { ok: true, ...clean });
     }
 
     // --- Legacy claim URLs (verification flow removed) ---

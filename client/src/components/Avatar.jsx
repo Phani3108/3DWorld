@@ -9,7 +9,7 @@ import { atom, useAtom } from "jotai";
 import React, { useEffect, useMemo, useRef, useState, memo, useCallback } from "react";
 import { SkeletonUtils } from "three-stdlib";
 import { useGrid } from "../hooks/useGrid";
-import { socket, userAtom, avatarDispatch, bondsAtom, charactersAtom, characterEmotionsAtom, dmInboxOpenAtom, selfLivePosition, mapAtom, profileViewTargetAtom } from "./SocketManager";
+import { socket, userAtom, avatarDispatch, bondsAtom, charactersAtom, characterEmotionsAtom, dmInboxOpenAtom, selfLivePosition, mapAtom, profileViewTargetAtom, characterReactionsAtom, characterEatingAtom } from "./SocketManager";
 import { dmPanelTargetAtom } from "./DirectMessagePanel";
 import soundManager from "../audio/SoundManager";
 
@@ -211,6 +211,10 @@ export const Avatar = memo(function Avatar({
   const [, setSelectedCharacter] = useAtom(selectedCharacterAtom);
   const [followedCharacter, setFollowedCharacter] = useAtom(followedCharacterAtom);
   const [, setProfileViewTarget] = useAtom(profileViewTargetAtom);
+  const [reactionsMap] = useAtom(characterReactionsAtom);
+  const [eatingMap] = useAtom(characterEatingAtom);
+  const myReaction = reactionsMap[id];
+  const myEating = eatingMap[id];
   const { gridToVector3 } = useGrid();
   const position = useMemo(() => gridToVector3(gridPosition), []);
   // Use refs for culling state to avoid re-renders from useFrame distance checks
@@ -1119,6 +1123,58 @@ export const Avatar = memo(function Avatar({
               </div>
             </Html>
           )}
+          {/* Phase 4: Floating reaction bubble (emoji or meme) — 3s lifetime */}
+          {myReaction && showHtmlOverlay && (
+            <Html position-y={isNonHumanoid ? 2.0 : 3.2} center distanceFactor={6} zIndexRange={[3, 0]} style={{ overflow: 'visible', pointerEvents: 'none' }}>
+              <div
+                key={myReaction.timestamp}
+                className="reaction-float"
+                style={{
+                  animation: "reactionFloat 3s ease-out forwards",
+                  filter: "drop-shadow(0 4px 6px rgba(0,0,0,0.4))",
+                }}
+              >
+                {myReaction.type === "emoji" ? (
+                  <span style={{ fontSize: 38, lineHeight: 1 }}>{myReaction.value}</span>
+                ) : (
+                  <img
+                    src={myReaction.value.startsWith("/") ? myReaction.value : `/memes/${myReaction.value}.webp`}
+                    alt=""
+                    style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: "2px solid #fff" }}
+                  />
+                )}
+              </div>
+              <style>{`
+                @keyframes reactionFloat {
+                  0%   { transform: translateY(0)      scale(0.4); opacity: 0; }
+                  15%  { transform: translateY(-6px)   scale(1.2); opacity: 1; }
+                  30%  { transform: translateY(-14px)  scale(1);   opacity: 1; }
+                  85%  { transform: translateY(-36px)  scale(1);   opacity: 1; }
+                  100% { transform: translateY(-60px)  scale(0.9); opacity: 0; }
+                }
+              `}</style>
+            </Html>
+          )}
+
+          {/* Phase 4: Eating bubble — food emoji + munching indicator */}
+          {myEating && showHtmlOverlay && (
+            <Html position-y={isNonHumanoid ? 1.9 : 3.0} center distanceFactor={7} zIndexRange={[2, 0]} style={{ pointerEvents: 'none' }}>
+              <div
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/90 border border-amber-300 shadow-lg whitespace-nowrap"
+                style={{ animation: "eatingPulse 800ms ease-in-out infinite" }}
+              >
+                <span style={{ fontSize: 20 }}>{myEating.emoji}</span>
+                <span className="text-xs text-amber-700 font-semibold">eating…</span>
+              </div>
+              <style>{`
+                @keyframes eatingPulse {
+                  0%, 100% { transform: scale(1); }
+                  50%      { transform: scale(1.08); }
+                }
+              `}</style>
+            </Html>
+          )}
+
           {/* Chat bubble + action status — positioned above name label */}
           <Html position-y={isNonHumanoid ? 1.7 : 2.8} center distanceFactor={8} zIndexRange={[1, 0]} style={{ overflow: 'visible', pointerEvents: 'none' }}>
             <div className="w-60 max-w-full pointer-events-none overflow-visible">

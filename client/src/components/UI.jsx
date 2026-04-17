@@ -28,9 +28,11 @@ import {
   walletOpenAtom,
   objectivesAtom,
   worldMapOpenAtom,
+  foodPanelOpenAtom,
 } from "./SocketManager";
 import DirectMessagePanel, { dmPanelTargetAtom } from "./DirectMessagePanel";
 import WalletPanel from "./WalletPanel";
+import EmojiMemePicker from "./EmojiMemePicker";
 import { renderAvatarPortrait } from "./Avatar";
 import soundManager from "../audio/SoundManager";
 
@@ -1375,6 +1377,8 @@ export const UI = () => {
   const [dmPanelTarget, setDmPanelTarget] = useAtom(dmPanelTargetAtom);
   const [walletOpen, setWalletOpen] = useAtom(walletOpenAtom);
   const [, setWorldMapOpen] = useAtom(worldMapOpenAtom);
+  const [, setFoodPanelOpen] = useAtom(foodPanelOpenAtom);
+  const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const [objectives] = useAtom(objectivesAtom);
   // Safety timeout: force-clear the transition overlay if it stays active too long
   useEffect(() => {
@@ -1655,7 +1659,23 @@ export const UI = () => {
         )}
         <div className="fixed inset-2 sm:inset-4 flex items-center justify-end flex-col pointer-events-none select-none z-10">
           {roomID && !shopMode && !buildMode && (
-            <div className="pointer-events-auto p-2 sm:p-4 flex items-center space-x-2 sm:space-x-4" onWheel={(e) => e.stopPropagation()}>
+            <div className="relative pointer-events-auto p-2 sm:p-4 flex items-center space-x-2 sm:space-x-4" onWheel={(e) => e.stopPropagation()}>
+              {/* Phase 4: Emoji / meme reaction picker */}
+              <div className="relative">
+                <button
+                  className={`p-3 sm:p-4 rounded-full drop-shadow-md cursor-pointer transition-colors border text-lg sm:text-xl ${
+                    reactionPickerOpen
+                      ? "bg-sky-500 text-white border-sky-400"
+                      : "bg-white/90 text-gray-700 hover:bg-white hover:text-sky-700 border-gray-200"
+                  }`}
+                  onClick={(e) => { e.stopPropagation(); setReactionPickerOpen((v) => !v); }}
+                  title="React with emoji or meme"
+                  aria-label="Open reaction picker"
+                >
+                  😀
+                </button>
+                <EmojiMemePicker open={reactionPickerOpen} onClose={() => setReactionPickerOpen(false)} />
+              </div>
               <input
                 type="text"
                 className="w-40 sm:w-56 border border-gray-200 bg-white/90 backdrop-blur-sm px-3 sm:px-5 p-3 sm:p-4 h-full rounded-full text-sm sm:text-base text-gray-800 placeholder-gray-400"
@@ -1804,6 +1824,18 @@ export const UI = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
                     </svg>
                     <span className="text-[10px] sm:text-xs text-sky-500 group-hover:text-sky-700 font-medium transition-colors">Travel</span>
+                  </button>
+                )}
+
+                {/* Food (Phase 4) */}
+                {roomID && (
+                  <button
+                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-amber-50 transition-colors group"
+                    onClick={() => { soundManager.play("button_click"); setFoodPanelOpen((v) => !v); }}
+                    title="Eat local food"
+                  >
+                    <span className="text-xl sm:text-2xl leading-none">🍽️</span>
+                    <span className="text-[10px] sm:text-xs text-amber-600 group-hover:text-amber-800 font-medium transition-colors">Food</span>
                   </button>
                 )}
 

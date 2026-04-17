@@ -347,6 +347,7 @@ const httpHandler = createHttpHandler({
   pendingInvites, DEV_MODE, OPEN_ACCESS,
   TRUST_PROXY,
   addAgentThought,
+  userSockets,
 });
 
 const httpServer = http.createServer(async (req, res) => {

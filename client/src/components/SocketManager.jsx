@@ -63,6 +63,18 @@ export const cityAtom = atom(null);
 export const citiesAtom = atom(null);
 // When true, the WorldMap portal overlay is rendered.
 export const worldMapOpenAtom = atom(false);
+// Phase 4 atoms
+// Map of characterId -> { type, value, timestamp } — reactions currently
+// displayed above a character. Entries auto-expire client-side after 3s.
+export const characterReactionsAtom = atom({});
+// Map of characterId -> { foodId, emoji, until } — eating bubbles.
+export const characterEatingAtom = atom({});
+// Food inventory for the local player, mirrored from the server.
+export const inventoryAtom = atom({ food: [] });
+// Sims-style motives for the local player.
+export const motivesAtom = atom({ energy: 100, hunger: 100, fun: 100, social: 100 });
+// Toggle for the FoodPanel overlay.
+export const foodPanelOpenAtom = atom(false);
 
 // Shared ref for the local player's live world position during movement.
 // Written by Avatar.jsx every frame, read by Minimap.jsx for smooth tracking.
@@ -133,6 +145,10 @@ export const SocketManager = () => {
   const [items, setItems] = useAtom(itemsAtom);
   const [_rooms, setRooms] = useAtom(roomsAtom);
   const [, setCities] = useAtom(citiesAtom);
+  const [, setCharacterReactions] = useAtom(characterReactionsAtom);
+  const [, setCharacterEating] = useAtom(characterEatingAtom);
+  const [, setMotives] = useAtom(motivesAtom);
+  const [, setInventory] = useAtom(inventoryAtom);
   const [_roomID, setRoomID] = useAtom(roomIDAtom);
   const [_agentThoughts, setAgentThoughts] = useAtom(agentThoughtsAtom);
   const [_activityEvents, setActivityEvents] = useAtom(activityEventsAtom);
@@ -685,6 +701,52 @@ export const SocketManager = () => {
       }]);
     }
 
+    // ── Phase 4 handlers ────────────────────────────────────────────
+    function onCharacterReaction({ id, type, value }) {
+      if (!id) return;
+      const now = Date.now();
+      setCharacterReactions((prev) => ({ ...prev, [id]: { type, value, timestamp: now } }));
+      // Auto-expire after 3 seconds
+      setTimeout(() => {
+        setCharacterReactions((prev) => {
+          const entry = prev[id];
+          if (entry && entry.timestamp === now) {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          }
+          return prev;
+        });
+      }, 3200);
+    }
+
+    function onCharacterEating({ id, foodId, emoji, duration }) {
+      if (!id || !emoji) return;
+      const dur = typeof duration === "number" ? duration : 3000;
+      const until = Date.now() + dur + 600;
+      setCharacterEating((prev) => ({ ...prev, [id]: { foodId, emoji, until } }));
+      setTimeout(() => {
+        setCharacterEating((prev) => {
+          const e = prev[id];
+          if (e && e.until === until) {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          }
+          return prev;
+        });
+      }, dur + 700);
+    }
+
+    function onMotivesUpdate(motives) {
+      if (!motives) return;
+      setMotives(motives);
+    }
+
+    socket.on("characterReaction", onCharacterReaction);
+    socket.on("characterEating", onCharacterEating);
+    socket.on("motivesUpdate", onMotivesUpdate);
+
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("roomJoined", onRoomJoined);
@@ -725,6 +787,9 @@ export const SocketManager = () => {
     return () => {
       clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;
+      socket.off("characterReaction", onCharacterReaction);
+      socket.off("characterEating", onCharacterEating);
+      socket.off("motivesUpdate", onMotivesUpdate);
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.off("roomJoined", onRoomJoined);
