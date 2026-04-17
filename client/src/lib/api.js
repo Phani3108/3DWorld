@@ -53,3 +53,16 @@ export const updateProfile = (userId, patch) =>
 // ── Food (Phase 4) ──────────────────────────────────────────────────
 export const buyFood = (userId, foodId) =>
   postJSON("/api/v1/food/buy", { userId, foodId });
+
+// ── Stories, memories, world feed, ask (Phase 5) ───────────────────
+export const postStory = (userId, text, cityId, emoji) =>
+  postJSON("/api/v1/stories", { userId, text, cityId, emoji });
+
+export const fetchWorldFeed = (limit = 50) =>
+  getJSON(`/api/v1/world/feed?limit=${limit}`);
+
+export const postMemory = (userId, imageBase64, caption, cityId, nearbyUserIds) =>
+  postJSON("/api/v1/memories", { userId, imageBase64, caption, cityId, nearbyUserIds });
+
+export const askAgent = (fromUserId, fromName, toBotId, question, roomId) =>
+  postJSON("/api/v1/ask", { fromUserId, fromName, toBotId, question, roomId });

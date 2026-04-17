@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 import pathfinding from "pathfinding";
 import * as db from "./db.js";
 import { listCitiesPublic, getCity, publicCity } from "./shared/cityCatalog.js";
@@ -6,6 +8,8 @@ import { FOOD_CATALOG, foodsForCity, getFood } from "./foodCatalog.js";
 import { AVATAR_CATALOG, ACCENT_COLORS } from "./itemCatalog.js";
 import { getUser, publicProfile, updateProfile } from "./userStore.js";
 import { EMOJI_REACTIONS, MEME_LIBRARY } from "./reactionCatalog.js";
+import { addToFeed, getFeed } from "./worldFeed.js";
+import { createQuestion, claimAnswer, getPendingForBot } from "./knowledgeService.js";
 
 export const createHttpHandler = (deps) => {
   const {
@@ -1095,6 +1099,291 @@ Want to build your own space? Each bot gets **one room** — here's how:
         });
       }
       return json(res, 200, { ok: true, ...clean });
+    }
+
+    // ═══ Phase 5: Stories ═════════════════════════════════════════════
+    if (req.method === "POST" && req.url === "/api/v1/stories") {
+      let payload;
+      try { payload = await readBody(req); }
+      catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
+      const { userId, text, cityId, emoji } = payload || {};
+      if (typeof userId !== "string" || typeof text !== "string") {
+        return json(res, 400, { error: "missing_fields" });
+      }
+      const trimmed = text.replace(/<[^>]*>/g, "").slice(0, 280).trim();
+      if (!trimmed) return json(res, 400, { error: "empty_text" });
+      const cleanEmoji = typeof emoji === "string" ? emoji.slice(0, 4) : undefined;
+      const cleanCityId = typeof cityId === "string" && getCity(cityId) ? cityId : null;
+
+      const { appendToUserList } = await import("./userStore.js");
+      const user = await getUser(userId);
+      if (!user) return json(res, 404, { error: "user_not_found" });
+
+      const storyId = crypto.randomUUID ? crypto.randomUUID() : `s_${Date.now()}`;
+      const story = {
+        id: storyId,
+        userId,
+        name: user.name,
+        isBot: !!user.isBot,
+        text: trimmed,
+        emoji: cleanEmoji,
+        cityId: cleanCityId,
+        createdAt: Date.now(),
+      };
+      await appendToUserList(userId, "stories", story, 50);
+      addToFeed({
+        type: "story",
+        actorUserId: userId,
+        actorName: user.name,
+        actorIsBot: !!user.isBot,
+        cityId: cleanCityId,
+        text: trimmed,
+        emoji: cleanEmoji,
+      });
+      return json(res, 200, { ok: true, story });
+    }
+
+    // ═══ Phase 5: World Feed ══════════════════════════════════════════
+    if (req.method === "GET" && req.url?.startsWith("/api/v1/world/feed")) {
+      const u = new URL(req.url, "http://x");
+      const limit = Math.max(1, Math.min(200, Number(u.searchParams.get("limit")) || 50));
+      return json(res, 200, getFeed(limit));
+    }
+
+    // ═══ Phase 5: Memories (screenshots) ═══════════════════════════════
+    // Accepts a base64-encoded JPEG / PNG and stores it under server/memories/<userId>/.
+    // Max payload 2 MB (enforced by the MAX_JSON_BODY_BYTES body reader).
+    if (req.method === "POST" && req.url === "/api/v1/memories") {
+      let payload;
+      try { payload = await readBody(req); }
+      catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
+      const { userId, imageBase64, caption, cityId, nearbyUserIds } = payload || {};
+      if (typeof userId !== "string" || typeof imageBase64 !== "string") {
+        return json(res, 400, { error: "missing_fields" });
+      }
+      const user = await getUser(userId);
+      if (!user) return json(res, 404, { error: "user_not_found" });
+
+      // Strip `data:image/jpeg;base64,` prefix if present
+      const m = imageBase64.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,(.*)$/);
+      const raw = m ? m[2] : imageBase64;
+      const ext = m ? (m[1] === "image/png" ? ".png" : m[1] === "image/webp" ? ".webp" : ".jpg") : ".jpg";
+
+      let buffer;
+      try { buffer = Buffer.from(raw, "base64"); }
+      catch { return json(res, 400, { error: "invalid_base64" }); }
+      if (buffer.length === 0 || buffer.length > 2 * 1024 * 1024) {
+        return json(res, 400, { error: "image_size", hint: "must be <= 2MB" });
+      }
+
+      // Persist file
+      const memId = crypto.randomUUID ? crypto.randomUUID() : `m_${Date.now()}`;
+      const userDir = path.join(process.cwd(), "memories", userId);
+      fs.mkdirSync(userDir, { recursive: true });
+      const relPath = `/api/v1/memories/${memId}${ext}`;
+      const diskPath = path.join(userDir, `${memId}${ext}`);
+      fs.writeFileSync(diskPath, buffer);
+
+      // Build memory record
+      const cleanCaption = typeof caption === "string" ? caption.replace(/<[^>]*>/g, "").slice(0, 200) : "";
+      const cleanCityId = typeof cityId === "string" && getCity(cityId) ? cityId : null;
+      const withUserIds = Array.isArray(nearbyUserIds)
+        ? nearbyUserIds.filter((x) => typeof x === "string").slice(0, 12)
+        : [];
+
+      const memory = {
+        id: memId,
+        capturedAt: Date.now(),
+        cityId: cleanCityId,
+        imagePath: relPath,
+        caption: cleanCaption,
+        withUserIds,
+      };
+
+      const { appendToUserList } = await import("./userStore.js");
+      await appendToUserList(userId, "memories", memory, 100);
+
+      // Shared moment: attach the memory to nearby users too so their gallery shows it.
+      for (const otherId of withUserIds) {
+        if (otherId === userId) continue;
+        const otherExists = await getUser(otherId);
+        if (!otherExists) continue;
+        await appendToUserList(
+          otherId,
+          "memories",
+          { ...memory, sharedWith: [userId, ...withUserIds.filter((i) => i !== otherId)] },
+          100,
+        );
+      }
+
+      // Light-touch feed entry for memorable moments with >=1 other person.
+      if (withUserIds.length > 0) {
+        addToFeed({
+          type: "moment",
+          actorUserId: userId,
+          actorName: user.name,
+          cityId: cleanCityId,
+          text: cleanCaption || "captured a moment",
+          emoji: "📸",
+          meta: { memoryId: memId, withUserIds },
+        });
+      }
+
+      return json(res, 200, { ok: true, memory });
+    }
+
+    // Serve memory binaries
+    const memoryImgMatch = req.url?.match(/^\/api\/v1\/memories\/([A-Za-z0-9_-]{4,64})\.(jpg|jpeg|png|webp)$/);
+    if (req.method === "GET" && memoryImgMatch) {
+      // We don't carry the userId in the URL to keep URLs short, so walk the memories/<userId>/
+      // tree looking for the file. Memory IDs are UUIDs so collisions aren't a concern.
+      const memId = memoryImgMatch[1];
+      const ext = memoryImgMatch[2];
+      const base = path.join(process.cwd(), "memories");
+      try {
+        const users = fs.readdirSync(base);
+        for (const uid of users) {
+          const file = path.join(base, uid, `${memId}.${ext}`);
+          if (fs.existsSync(file)) {
+            const contentType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+            res.writeHead(200, {
+              "Content-Type": contentType,
+              "Cache-Control": "public, max-age=86400",
+              ...getSecurityHeaders(req),
+              "Access-Control-Allow-Origin": getCorsOrigin(req),
+            });
+            return fs.createReadStream(file).pipe(res);
+          }
+        }
+      } catch {}
+      return json(res, 404, { error: "memory_not_found" });
+    }
+
+    // ═══ Phase 5: Ask-an-Agent ═════════════════════════════════════════
+    if (req.method === "POST" && req.url === "/api/v1/ask") {
+      let payload;
+      try { payload = await readBody(req); }
+      catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
+      const { fromUserId, fromName, toBotId, question, roomId } = payload || {};
+      if (typeof fromUserId !== "string" || typeof toBotId !== "string"
+          || typeof question !== "string" || typeof roomId !== "string") {
+        return json(res, 400, { error: "missing_fields" });
+      }
+      // Resolve the bot registry entry — toBotId is the human-visible socket id
+      // OR the hashed api key. We accept both by searching botRegistry first.
+      let botKey = null;
+      let botReg = null;
+      for (const [key, val] of (botRegistry?.entries?.() || [])) {
+        if (val && (val.socketId === toBotId || key === toBotId || val.name === toBotId)) {
+          botKey = key; botReg = val; break;
+        }
+      }
+      // Decide channel
+      let channel = "polling";
+      if (botReg && botReg.webhookUrl) channel = "both";
+
+      const result = createQuestion({ fromUserId, fromName, toBotId: botKey || toBotId, question, roomId, channel });
+      if (!result.ok) return json(res, 400, result);
+
+      // Fire the webhook if configured (best-effort; polling path still queued).
+      if (botReg && botReg.webhookUrl) {
+        try {
+          await sendWebhook(botKey, {
+            event: "question",
+            question: result.entry.question,
+            fromUserId,
+            fromName,
+            roomId,
+            replyToken: result.token,
+            answerUrl: `${SERVER_URL}/api/v1/ask/${result.token}/answer`,
+            timestamp: Date.now(),
+          });
+        } catch (e) {
+          // Webhook failed — polling queue still has the question, so the bot
+          // will eventually pick it up.
+          console.warn("[ask] webhook failed:", e.message);
+        }
+      }
+
+      return json(res, 200, {
+        ok: true,
+        replyToken: result.token,
+        channel,
+        answerUrl: `${SERVER_URL}/api/v1/ask/${result.token}/answer`,
+      });
+    }
+
+    // Bot answers a previously-asked question
+    const askAnsMatch = req.url?.match(/^\/api\/v1\/ask\/([A-Za-z0-9_-]{8,64})\/answer$/);
+    if (req.method === "POST" && askAnsMatch) {
+      let payload;
+      try { payload = await readBody(req); }
+      catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
+      const token = askAnsMatch[1];
+      const { text } = payload || {};
+      if (typeof text !== "string") return json(res, 400, { error: "missing_text" });
+      const answerText = text.replace(/<[^>]*>/g, "").slice(0, 1000).trim();
+      if (!answerText) return json(res, 400, { error: "empty_text" });
+
+      const question = claimAnswer(token);
+      if (!question) return json(res, 404, { error: "invalid_or_expired_token" });
+
+      // Identify the bot (best-effort — for the teaching counter + display name)
+      let botName = "Agent";
+      let botRecord = null;
+      if (botRegistry?.get) {
+        const reg = botRegistry.get(question.toBotId);
+        if (reg) { botName = reg.name || botName; botRecord = reg; }
+      }
+
+      // Append the learned fact to the asker's profile
+      const { appendToUserList, getUser: getUserLocal } = await import("./userStore.js");
+      const factId = crypto.randomUUID ? crypto.randomUUID() : `lf_${Date.now()}`;
+      const fact = {
+        id: factId,
+        question: question.question,
+        answer: answerText,
+        fromBotId: question.toBotId,
+        fromBotName: botName,
+        cityId: null,
+        learnedAt: Date.now(),
+      };
+      await appendToUserList(question.fromUserId, "learnedFacts", fact, 200);
+
+      // Bump the bot's teaching counter
+      const asker = await getUserLocal(question.fromUserId);
+      const { incrementTeachingCount } = await import("./userStore.js");
+      await incrementTeachingCount(question.toBotId);
+
+      // Broadcast the answer into the room as a bot chat bubble so both humans
+      // and agents in the room see it. Reuse the existing `playerChatMessage` shape.
+      if (deps.io) {
+        const emitId = botRecord?.socketId || question.toBotId;
+        deps.io.to(question.roomId).emit("playerChatMessage", {
+          id: emitId,
+          message: `@${asker?.name || "friend"} — ${answerText}`,
+        });
+      }
+
+      // Feed entry so the knowledge exchange shows in the bulletin "world" tab
+      addToFeed({
+        type: "fact",
+        actorUserId: question.fromUserId,
+        actorName: asker?.name || "",
+        cityId: null,
+        text: `learned from ${botName}: ${answerText.slice(0, 120)}${answerText.length > 120 ? "…" : ""}`,
+        emoji: "🧠",
+        meta: { factId, botId: question.toBotId, botName, question: question.question },
+      });
+
+      return json(res, 200, { ok: true, fact });
+    }
+
+    // Bots poll their own pending questions (fallback when no webhook)
+    const pendingQMatch = req.url?.match(/^\/api\/v1\/bots\/([A-Za-z0-9_-]+)\/pending-questions$/);
+    if (req.method === "GET" && pendingQMatch) {
+      const items = getPendingForBot(pendingQMatch[1]);
+      return json(res, 200, items);
     }
 
     // --- Legacy claim URLs (verification flow removed) ---

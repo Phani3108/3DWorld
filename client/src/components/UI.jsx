@@ -33,6 +33,8 @@ import {
 import DirectMessagePanel, { dmPanelTargetAtom } from "./DirectMessagePanel";
 import WalletPanel from "./WalletPanel";
 import EmojiMemePicker from "./EmojiMemePicker";
+import ScreenshotButton from "./ScreenshotButton";
+import StoryComposer from "./StoryComposer";
 import { renderAvatarPortrait } from "./Avatar";
 import soundManager from "../audio/SoundManager";
 
@@ -1379,6 +1381,7 @@ export const UI = () => {
   const [, setWorldMapOpen] = useAtom(worldMapOpenAtom);
   const [, setFoodPanelOpen] = useAtom(foodPanelOpenAtom);
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
+  const [storyComposerOpen, setStoryComposerOpen] = useState(false);
   const [objectives] = useAtom(objectivesAtom);
   // Safety timeout: force-clear the transition overlay if it stays active too long
   useEffect(() => {
@@ -1572,6 +1575,13 @@ export const UI = () => {
 
       {/* Wallet Panel */}
       <WalletPanel />
+
+      {/* Story composer (Phase 5) */}
+      <StoryComposer
+        open={storyComposerOpen}
+        onClose={() => setStoryComposerOpen(false)}
+        onPosted={() => { /* bulletin board refreshes on demand */ }}
+      />
 
       {/* Room Invite Notifications */}
       <div className="fixed bottom-24 right-4 z-[20] flex flex-col gap-2 pointer-events-none">
@@ -1836,6 +1846,21 @@ export const UI = () => {
                   >
                     <span className="text-xl sm:text-2xl leading-none">🍽️</span>
                     <span className="text-[10px] sm:text-xs text-amber-600 group-hover:text-amber-800 font-medium transition-colors">Food</span>
+                  </button>
+                )}
+
+                {/* Screenshot (Phase 5) */}
+                {roomID && <ScreenshotButton />}
+
+                {/* Story composer (Phase 5) */}
+                {roomID && (
+                  <button
+                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-indigo-50 transition-colors group"
+                    onClick={() => { soundManager.play("button_click"); setStoryComposerOpen(true); }}
+                    title="Post a story"
+                  >
+                    <span className="text-xl sm:text-2xl leading-none">📌</span>
+                    <span className="text-[10px] sm:text-xs text-indigo-500 group-hover:text-indigo-700 font-medium transition-colors">Story</span>
                   </button>
                 )}
 

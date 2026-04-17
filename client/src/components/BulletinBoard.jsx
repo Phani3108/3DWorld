@@ -1,6 +1,6 @@
 import { Html } from "@react-three/drei";
 import { atom, useAtom } from "jotai";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { agentThoughtsAtom } from "./SocketManager";
 
 // Atom to control bulletin board expanded state (rendered outside Canvas)
@@ -218,6 +218,21 @@ export const BulletinBoardPanel = () => {
   const [open, setOpen] = useAtom(bulletinBoardOpenAtom);
   const [thoughts] = useAtom(agentThoughtsAtom);
   const [selectedNote, setSelectedNote] = useState(null);
+  const [tab, setTab] = useState("stories");
+  const [feed, setFeed] = useState([]);
+  const [feedLoaded, setFeedLoaded] = useState(false);
+
+  // Lazy-load the world feed when the bulletin board opens.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    import("../lib/api").then(({ fetchWorldFeed }) => {
+      fetchWorldFeed(50)
+        .then((list) => { if (!cancelled) { setFeed(Array.isArray(list) ? list : []); setFeedLoaded(true); } })
+        .catch(() => { if (!cancelled) setFeedLoaded(true); });
+    });
+    return () => { cancelled = true; };
+  }, [open]);
 
   if (!open) return null;
 
@@ -228,7 +243,7 @@ export const BulletinBoardPanel = () => {
     >
       <div className="absolute inset-0 bg-black/40" />
       <div
-        className="relative w-[420px] max-h-[50vh] rounded-xl shadow-2xl overflow-hidden flex flex-col"
+        className="relative w-[480px] max-h-[70vh] rounded-xl shadow-2xl overflow-hidden flex flex-col"
         style={{ background: "#d4a574" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -243,23 +258,53 @@ export const BulletinBoardPanel = () => {
           </button>
         </div>
 
+        {/* Tabs */}
+        <div className="flex text-xs font-bold uppercase tracking-wider" style={{ background: "#b18253" }}>
+          <button
+            className={`flex-1 py-2 transition-colors ${tab === "stories" ? "bg-amber-700 text-white" : "text-amber-100/80 hover:bg-amber-700/60"}`}
+            onClick={() => setTab("stories")}
+          >
+            📌 World Feed
+          </button>
+          <button
+            className={`flex-1 py-2 transition-colors ${tab === "thoughts" ? "bg-amber-700 text-white" : "text-amber-100/80 hover:bg-amber-700/60"}`}
+            onClick={() => setTab("thoughts")}
+          >
+            🤖 Agent Thoughts
+          </button>
+        </div>
+
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5" style={{ background: "#c9a87c" }}>
-          {thoughts.length === 0 ? (
-            <p className="text-center text-amber-700/60 text-sm py-8">
-              No agent thoughts yet. Check back later!
-            </p>
-          ) : (
-            thoughts.slice(0, 12).map((thought, i) => (
-              <ThoughtCard
-                key={thought.id || i}
-                thought={thought}
-                index={i}
-                onClick={() => {
-                  setSelectedNote(thought);
-                }}
-              />
-            ))
+        <div className="flex-1 overflow-y-auto p-5 space-y-4" style={{ background: "#c9a87c" }}>
+          {tab === "thoughts" && (
+            thoughts.length === 0 ? (
+              <p className="text-center text-amber-700/60 text-sm py-8">
+                No agent thoughts yet. Check back later!
+              </p>
+            ) : (
+              thoughts.slice(0, 12).map((thought, i) => (
+                <ThoughtCard
+                  key={thought.id || i}
+                  thought={thought}
+                  index={i}
+                  onClick={() => setSelectedNote(thought)}
+                />
+              ))
+            )
+          )}
+
+          {tab === "stories" && (
+            !feedLoaded ? (
+              <p className="text-center text-amber-700/60 text-sm py-8">Loading feed…</p>
+            ) : feed.length === 0 ? (
+              <p className="text-center text-amber-700/60 text-sm py-8">
+                No stories yet. Tap the 📌 button to post one — it'll show up here for everyone in every city.
+              </p>
+            ) : (
+              feed.slice(0, 30).map((entry, i) => (
+                <FeedCard key={entry.id} entry={entry} index={i} />
+              ))
+            )
           )}
         </div>
       </div>
@@ -271,6 +316,53 @@ export const BulletinBoardPanel = () => {
           setSelectedNote(null);
         }}
       />
+    </div>
+  );
+};
+
+const TYPE_ICONS = { story: "📌", bond: "💛", moment: "📸", fact: "🧠", featured_agent: "🎓" };
+
+const FeedCard = ({ entry, index = 0 }) => {
+  const rot = ((index % 5) - 2) * 1.5;
+  const icon = TYPE_ICONS[entry.type] || "•";
+  return (
+    <div
+      className="relative p-3 px-4 rounded-sm"
+      style={{
+        transform: `rotate(${rot}deg)`,
+        background: "linear-gradient(145deg, #fffbeb 0%, #fef3c7 50%, #fde68a 100%)",
+        boxShadow: "0 1px 1px rgba(0,0,0,0.08), 0 2px 2px rgba(0,0,0,0.08), 0 4px 4px rgba(0,0,0,0.08)",
+      }}
+    >
+      <div
+        className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full z-10"
+        style={{
+          background: "radial-gradient(circle at 30% 30%, #ef4444, #b91c1c)",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+        }}
+      />
+      <div className="flex items-start gap-2 mt-1">
+        <span className="text-lg leading-none">{entry.emoji || icon}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-xs font-bold text-amber-900">
+              {entry.actorName || "Someone"}
+            </span>
+            {entry.actorIsBot && (
+              <span className="text-[9px] bg-blue-600 text-white px-1 py-0.5 rounded font-bold">AGENT</span>
+            )}
+            {entry.cityId && (
+              <span className="text-[9px] bg-amber-700 text-white px-1 py-0.5 rounded uppercase">{entry.cityId}</span>
+            )}
+            <span className="text-[9px] text-amber-700/60 ml-auto">
+              {new Date(entry.createdAt).toLocaleString()}
+            </span>
+          </div>
+          <p className="text-[13px] text-amber-900 mt-0.5 break-words">
+            {entry.text}
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

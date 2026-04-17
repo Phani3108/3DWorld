@@ -555,3 +555,16 @@ export const getInventory = async (userId) => {
   ensureProfileDefaults(user);
   return user.inventory;
 };
+
+/** Increment a bot's teaching counter after they answer a question. */
+export const incrementTeachingCount = async (userId, delta = 1) => {
+  if (!userId) return null;
+  if (isDbAvailable()) return null;
+  const user = users.get(userId);
+  if (!user) return null;
+  ensureProfileDefaults(user);
+  user.teachingCount = (user.teachingCount || 0) + delta;
+  user.updatedAt = Date.now();
+  persistUsers();
+  return user.teachingCount;
+};

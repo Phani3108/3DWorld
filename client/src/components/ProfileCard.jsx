@@ -3,6 +3,7 @@ import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
 import { profileViewTargetAtom } from "./SocketManager";
 import { fetchProfile, fetchCity } from "../lib/api";
+import { AskAgentDialog } from "./AskAgentDialog";
 
 const SOCIAL_ICONS = {
   twitter:   { label: "Twitter", emoji: "🐦", url: (h) => `https://twitter.com/${h}` },
@@ -187,6 +188,9 @@ export const ProfileCard = () => {
                   🎓 Has taught humans {profile.stats.teachingCount} times
                 </div>
               )}
+
+              {/* Ask-an-Agent — only for bot profiles */}
+              {profile.isBot && <AskAgentDialog bot={profile} />}
             </>
           )}
         </motion.div>
