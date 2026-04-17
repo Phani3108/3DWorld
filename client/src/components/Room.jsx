@@ -17,6 +17,7 @@ import { Skyscraper } from "./Skyscraper";
 import { BulletinBoard } from "./BulletinBoard";
 import { showRoomSelectorAtom } from "./UI";
 import { Landmark } from "./landmarks/Landmark";
+import { Prop } from "./props/Prop";
 import { cityAtom, venuesInCityAtom, currentVenueAtom } from "./SocketManager";
 
 class AvatarErrorBoundary extends Component {
@@ -525,6 +526,26 @@ export const Room = () => {
               </mesh>
             );
           })}
+        </group>
+      )}
+
+      {/* Phase 7C.1: Venue-layout props — tables, counters, lamps, etc.
+          Pulled from each venue's `layout` array (merged server-side from
+          shared/venueLayouts.js). Non-interactive — pure decoration. */}
+      {!shopMode && isCity && venuesInCity && venuesInCity.length > 0 && (
+        <group raycast={() => null}>
+          {venuesInCity.flatMap((v) =>
+            (v.layout || []).map((p, i) => (
+              <Prop
+                key={`${v.id}:${p.prop}:${i}`}
+                type={p.prop}
+                gridPosition={p.grid}
+                rotation={p.rotation || 0}
+                accent={map?.theme?.palette?.accent || "#fb7185"}
+                gridDivision={map.gridDivision || 2}
+              />
+            ))
+          )}
         </group>
       )}
 

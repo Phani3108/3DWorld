@@ -6,7 +6,12 @@
  * When a real LLM-backed bot is registered, Ask-an-Agent fires the bot's
  * webhook first (with `conversation.stylePrompt` + venue context) and only
  * falls back to canned answers on no-reply / timeout.
+ *
+ * Per-venue prop placements live in shared/venueLayouts.js and are merged
+ * into the public projection on the way out (`layout: [...]`).
  */
+
+import { getLayout } from "./venueLayouts.js";
 
 export const VENUES = {
   // ═══════ HYDERABAD ═══════════════════════════════════════════════
@@ -999,7 +1004,11 @@ export const publicVenue = (venue) => {
         register: conversation.register,
       }
     : null;
-  return { ...rest, conversation: publicConv };
+  return {
+    ...rest,
+    conversation: publicConv,
+    layout: getLayout(venue.id),   // Phase 7C.1: props placed inside the venue
+  };
 };
 
 /** Return a public projection by id. */
