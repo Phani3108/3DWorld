@@ -1,0 +1,8 @@
+server/
+tests/
+docs/
+packages/
+*.md
+!client/README.md
+Dockerfile
+render.yaml
