@@ -20,6 +20,7 @@ import soundManager from "./audio/SoundManager";
 import AudioSettingsPanel from "./audio/AudioSettingsPanel";
 import { BulletinBoardPanel } from "./components/BulletinBoard";
 import ProfileCard from "./components/ProfileCard";
+import WorldMap from "./components/WorldMap";
 import { updateProfile as apiUpdateProfile } from "./lib/api";
 
 class ErrorBoundary extends Component {
@@ -171,6 +172,7 @@ function App() {
       {loaded && <AudioSettingsPanel />}
       {loaded && <BulletinBoardPanel />}
       {loaded && <ProfileCard />}
+      {loaded && <WorldMap />}
       {loaded && showWelcome && (
         <>
           <BubblesBackground />

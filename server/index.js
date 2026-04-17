@@ -4,6 +4,7 @@ import pathfinding from "pathfinding";
 import bcrypt from "bcrypt";
 import { Server } from "socket.io";
 import { ROOM_ZONES, scaleZoneArea } from "./shared/roomConstants.js";
+import { CITIES, listCityIds, publicCity } from "./shared/cityCatalog.js";
 import { initDb, isDbAvailable, listRooms as dbListRooms, countRooms as dbCountRooms, getNextApartmentNumber as dbGetNextApartmentNumber } from "./db.js";
 import {
   getCachedRoom, setCachedRoom, getAllCachedRooms, getOrLoadRoom,
@@ -287,7 +288,46 @@ const loadRoomsFromFile = async () => {
   console.log(`Loaded ${allCached.length} rooms (${claimedCount} claimed by bots)`);
 };
 
+/**
+ * Seed one public room per city defined in cityCatalog.
+ * Cities use stable id `city_<id>` so they coexist with `plaza` + apartments.
+ * No-op if the cache already has the room (idempotent across restarts).
+ */
+const seedCityRooms = () => {
+  for (const cityId of listCityIds()) {
+    const roomId = `city_${cityId}`;
+    if (getCachedRoom(roomId)) continue;
+    const city = CITIES[cityId];
+    const room = {
+      id: roomId,
+      name: city.name,
+      size: city.size,
+      gridDivision: city.gridDivision,
+      items: [],
+      characters: [],
+      // Phase 3 metadata — client reads this via welcome/roomJoined events
+      cityId,
+      isCity: true,
+      theme: {
+        palette: city.palette,
+        ambient: city.ambient,
+        skybox: city.skybox,
+      },
+      landmarks: city.landmarks,
+      tagline: city.tagline,
+      emoji: city.emoji,
+      menu: city.menu,
+      greeterBot: city.greeterBot,
+    };
+    room.grid = new pathfinding.Grid(room.size[0] * room.gridDivision, room.size[1] * room.gridDivision);
+    updateGrid(room);
+    setCachedRoom(room);
+  }
+  console.log(`Seeded ${listCityIds().length} city rooms`);
+};
+
 await loadRooms();
+seedCityRooms();
 
 // --- Create HTTP server + Socket.IO ---
 const broadcastToRoom = (roomId, event, data) => {

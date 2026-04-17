@@ -59,6 +59,10 @@ export const profileAtom = atom(null);
 export const profileViewTargetAtom = atom(null);
 // Which city this user currently lives in (set from joinRoom response in Phase 3).
 export const cityAtom = atom(null);
+// Full cities catalog (populated from the `welcome` socket event). Keyed by cityId.
+export const citiesAtom = atom(null);
+// When true, the WorldMap portal overlay is rendered.
+export const worldMapOpenAtom = atom(false);
 
 // Shared ref for the local player's live world position during movement.
 // Written by Avatar.jsx every frame, read by Minimap.jsx for smooth tracking.
@@ -128,6 +132,7 @@ export const SocketManager = () => {
   const [_user, setUser] = useAtom(userAtom);
   const [items, setItems] = useAtom(itemsAtom);
   const [_rooms, setRooms] = useAtom(roomsAtom);
+  const [, setCities] = useAtom(citiesAtom);
   const [_roomID, setRoomID] = useAtom(roomIDAtom);
   const [_agentThoughts, setAgentThoughts] = useAtom(agentThoughtsAtom);
   const [_activityEvents, setActivityEvents] = useAtom(activityEventsAtom);
@@ -201,6 +206,7 @@ export const SocketManager = () => {
       if (value.totalRooms !== undefined) setTotalRooms(value.totalRooms);
       setItems(value.items);
       if (value.agentThoughts) setAgentThoughts(value.agentThoughts);
+      if (value.cities) setCities(value.cities);
       // Join once username is available (may be immediate if stored)
       if (value.rooms && value.rooms.length > 0) {
         const storedName = localStorage.getItem("3dworld_username");

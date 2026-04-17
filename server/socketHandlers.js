@@ -1,4 +1,10 @@
 import bcrypt from "bcrypt";
+import { listCitiesPublic } from "./shared/cityCatalog.js";
+
+// Build a keyed map once — avoids re-projecting on every welcome event.
+const CITIES_PUBLIC = Object.fromEntries(
+  listCitiesPublic().map((c) => [c.id, c])
+);
 
 /**
  * Registers all Socket.IO connection and event handlers.
@@ -328,14 +334,32 @@ export function registerSocketHandlers(deps) {
               claimedBy: room.claimedBy || null,
               generated: room.generated || false,
               apartmentNumber: room.apartmentNumber || null,
+              cityId: room.cityId || null,
+              isCity: !!room.isCity,
+              emoji: room.emoji || null,
             }));
       const totalRooms = isDbAvailable() ? await dbCountRooms() : welcomeRooms.length;
+
+      // Include the cities catalog so the client's WorldMap can render without
+      // an extra round-trip. Uses the public-safe projection from cityCatalog.
+      const citiesPayload = {};
+      for (const [id, c] of Object.entries(CITIES_PUBLIC)) {
+        // Enrich with live character counts so pin tooltips show "N people here".
+        const roomId = `city_${id}`;
+        const cached = getCachedRoom(roomId);
+        citiesPayload[id] = {
+          ...c,
+          roomId,
+          nbCharacters: cached ? cached.characters.length : 0,
+        };
+      }
 
       socket.emit("welcome", {
         rooms: welcomeRooms,
         totalRooms,
         items,
         agentThoughts: agentThoughts || [],
+        cities: citiesPayload,
       });
 
       socket.on("joinRoom", async (roomId, opts) => {
@@ -420,6 +444,12 @@ export function registerSocketHandlers(deps) {
             gridDivision: room.gridDivision,
             size: room.size,
             items: room.items,
+            cityId: room.cityId || null,
+            isCity: !!room.isCity,
+            theme: room.theme || null,
+            landmarks: room.landmarks || [],
+            tagline: room.tagline || null,
+            emoji: room.emoji || null,
           },
           characters: stripCharacters(room.characters),
           id: socket.id,
@@ -448,6 +478,12 @@ export function registerSocketHandlers(deps) {
             gridDivision: room.gridDivision,
             size: room.size,
             items: room.items,
+            cityId: room.cityId || null,
+            isCity: !!room.isCity,
+            theme: room.theme || null,
+            landmarks: room.landmarks || [],
+            tagline: room.tagline || null,
+            emoji: room.emoji || null,
           },
           characters: stripCharacters(room.characters),
           id: socket.id,
@@ -584,6 +620,12 @@ export function registerSocketHandlers(deps) {
             gridDivision: room.gridDivision,
             size: room.size,
             items: room.items,
+            cityId: room.cityId || null,
+            isCity: !!room.isCity,
+            theme: room.theme || null,
+            landmarks: room.landmarks || [],
+            tagline: room.tagline || null,
+            emoji: room.emoji || null,
           },
           characters: stripCharacters(room.characters),
           id: socket.id,
@@ -1047,6 +1089,12 @@ export function registerSocketHandlers(deps) {
             gridDivision: room.gridDivision,
             size: room.size,
             items: room.items,
+            cityId: room.cityId || null,
+            isCity: !!room.isCity,
+            theme: room.theme || null,
+            landmarks: room.landmarks || [],
+            tagline: room.tagline || null,
+            emoji: room.emoji || null,
           },
           characters: stripCharacters(room.characters),
           id: socket.id,
@@ -1358,6 +1406,12 @@ export function registerSocketHandlers(deps) {
             gridDivision: room.gridDivision,
             size: room.size,
             items: room.items,
+            cityId: room.cityId || null,
+            isCity: !!room.isCity,
+            theme: room.theme || null,
+            landmarks: room.landmarks || [],
+            tagline: room.tagline || null,
+            emoji: room.emoji || null,
           },
         });
 
@@ -1429,6 +1483,12 @@ export function registerSocketHandlers(deps) {
             gridDivision: room.gridDivision,
             size: room.size,
             items: room.items,
+            cityId: room.cityId || null,
+            isCity: !!room.isCity,
+            theme: room.theme || null,
+            landmarks: room.landmarks || [],
+            tagline: room.tagline || null,
+            emoji: room.emoji || null,
           },
         });
 

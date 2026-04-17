@@ -16,6 +16,8 @@ import { SmallBuilding } from "./SmallBuilding";
 import { Skyscraper } from "./Skyscraper";
 import { BulletinBoard } from "./BulletinBoard";
 import { showRoomSelectorAtom } from "./UI";
+import { Landmark } from "./landmarks/Landmark";
+import { cityAtom } from "./SocketManager";
 
 class AvatarErrorBoundary extends Component {
   state = { hasError: false };
@@ -148,6 +150,26 @@ export const Room = () => {
   const [user] = useAtom(userAtom);
   const [, setShowRoomSelector] = useAtom(showRoomSelectorAtom);
   const [itemsCatalog] = useAtom(itemsAtom);
+  const [, setCity] = useAtom(cityAtom);
+
+  // Phase 3: Keep `cityAtom` in sync with the current map so UI chrome
+  // (WorldMap button label, city info pill, etc.) can read the city directly.
+  useEffect(() => {
+    if (map?.isCity && map?.cityId) {
+      setCity({
+        id: map.cityId,
+        theme: map.theme,
+        landmarks: map.landmarks,
+        tagline: map.tagline,
+        emoji: map.emoji,
+      });
+    } else {
+      setCity(null);
+    }
+  }, [map?.isCity, map?.cityId, setCity]);
+
+  const isCity = !!map?.isCity;
+  const cityGround = map?.theme?.palette?.ground || null;
 
   useEffect(() => {
     setItems(map.items);
@@ -297,6 +319,11 @@ export const Room = () => {
 
   return (
     <>
+      {/* City sky tint — overrides App.jsx's default white background */}
+      {isCity && map?.theme?.palette?.sky && (
+        <color attach="background" args={[map.theme.palette.sky]} />
+      )}
+
       {buildMode &&
         items.map((item, idx) => (
           <Item
@@ -379,42 +406,68 @@ export const Room = () => {
             onPointerLeave={() => setOnFloor(false)}
           >
             <planeGeometry args={map.size} />
-            <meshStandardMaterial color="#7a7a7a" />
+            <meshStandardMaterial color={cityGround || "#7a7a7a"} />
           </mesh>
 
-          {/* Apartment building - clickable, opens rooms list */}
-          <group
-            position={[7, 0, map.size[1] / 2]}
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowRoomSelector(true);
-            }}
-            onPointerOver={(e) => {
-              e.stopPropagation();
-              document.body.style.cursor = "pointer";
-            }}
-            onPointerOut={() => {
-              document.body.style.cursor = "auto";
-            }}
-          >
-            <Apartment scale={5.9} rotation-y={Math.PI / 2} />
-            <Html position={[0, 4.5, 0]} center distanceFactor={20} zIndexRange={[1, 0]} style={{ pointerEvents: "none" }}>
-              <div className="bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-lg border border-amber-200 whitespace-nowrap">
-                <p className="text-sm font-bold text-amber-700 text-center">APARTMENTS</p>
-                <p className="text-[10px] text-amber-500 text-center">Click to view rooms</p>
+          {/* Plaza buildings — shown for the original plaza only, not for cities */}
+          {!isCity && (
+            <>
+              <group
+                position={[7, 0, map.size[1] / 2]}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowRoomSelector(true);
+                }}
+                onPointerOver={(e) => {
+                  e.stopPropagation();
+                  document.body.style.cursor = "pointer";
+                }}
+                onPointerOut={() => {
+                  document.body.style.cursor = "auto";
+                }}
+              >
+                <Apartment scale={5.9} rotation-y={Math.PI / 2} />
+                <Html position={[0, 4.5, 0]} center distanceFactor={20} zIndexRange={[1, 0]} style={{ pointerEvents: "none" }}>
+                  <div className="bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-lg border border-amber-200 whitespace-nowrap">
+                    <p className="text-sm font-bold text-amber-700 text-center">APARTMENTS</p>
+                    <p className="text-[10px] text-amber-500 text-center">Click to view rooms</p>
+                  </div>
+                </Html>
+              </group>
+
+              {/* Town Hall - non-interactive landmark */}
+              <TownHall scale={4.1} position={[map.size[0] / 2, 0, 8]} />
+
+              {/* Bulletin Board - in front of Town Hall */}
+              <BulletinBoard position={[map.size[0] / 2, 0, 12]} scale={1.8} />
+            </>
+          )}
+
+          {/* City banner — floats above the spawn so arrivals instantly know where they are */}
+          {isCity && (
+            <Html position={[map.size[0] / 2, 5, map.size[1] / 2]} center distanceFactor={24} zIndexRange={[1, 0]} style={{ pointerEvents: "none" }}>
+              <div
+                className="rounded-2xl px-5 py-3 shadow-2xl backdrop-blur-md whitespace-nowrap"
+                style={{
+                  background: `linear-gradient(135deg, ${map?.theme?.palette?.accent}cc, #0008)`,
+                  border: `1px solid ${map?.theme?.palette?.accent || "#fff"}55`,
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{map?.emoji || "🌍"}</span>
+                  <div>
+                    <div className="text-sm font-bold text-white">{map?.cityId?.toUpperCase()}</div>
+                    {map?.tagline && <div className="text-[10px] text-white/80">{map.tagline}</div>}
+                  </div>
+                </div>
               </div>
             </Html>
-          </group>
-
-          {/* Town Hall - non-interactive landmark */}
-          <TownHall scale={4.1} position={[map.size[0] / 2, 0, 8]} />
-
-          {/* Bulletin Board - in front of Town Hall */}
-          <BulletinBoard position={[map.size[0] / 2, 0, 12]} scale={1.8} />
+          )}
         </group>
       )}
-      {/* City buildings as landmarks: always visible in large rooms (non-interactive in build mode) */}
-      {!shopMode && map.size[0] > 30 && (
+
+      {/* Plaza buildings in build mode (plaza-only) */}
+      {!shopMode && !isCity && map.size[0] > 30 && (
         <group onPointerOver={null} raycast={() => null}>
           {/* Show apartment in build mode (it's rendered interactively above when not building) */}
           {buildMode && <Apartment scale={5.9} position={[7, 0, map.size[1] / 2]} rotation-y={Math.PI / 2} />}
@@ -427,6 +480,21 @@ export const Room = () => {
           <Skyscraper scale={5.9} position={[map.size[0] - 5.5, 0, 5.5]} />
           <Skyscraper scale={5.9} position={[5.5, 0, map.size[1] - 5.5]} />
           <Skyscraper scale={5.9} position={[map.size[0] - 5.5, 0, map.size[1] - 5.5]} />
+        </group>
+      )}
+
+      {/* City landmarks — rendered from the catalog footprint data */}
+      {!shopMode && isCity && map.landmarks && (
+        <group raycast={() => null}>
+          {map.landmarks.map((lm, i) => (
+            <Landmark
+              key={`${lm.type}-${i}`}
+              type={lm.type}
+              footprint={lm.footprint}
+              palette={map.theme?.palette}
+              gridDivision={map.gridDivision}
+            />
+          ))}
         </group>
       )}
 
