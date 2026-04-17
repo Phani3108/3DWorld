@@ -10,6 +10,9 @@ import { getUser, publicProfile, updateProfile } from "./userStore.js";
 import { EMOJI_REACTIONS, MEME_LIBRARY } from "./reactionCatalog.js";
 import { addToFeed, getFeed } from "./worldFeed.js";
 import { createQuestion, claimAnswer, getPendingForBot } from "./knowledgeService.js";
+import { publicLanguage, LANGUAGES } from "./shared/languageCatalog.js";
+import { getVenue, publicVenue, venuesInCity, allVenuesPublic, matchCannedAnswer } from "./shared/venueCatalog.js";
+import { findVenueAt, cityIdFromRoom } from "./venueService.js";
 
 export const createHttpHandler = (deps) => {
   const {
@@ -1000,6 +1003,58 @@ Want to build your own space? Each bot gets **one room** — here's how:
       return json(res, 200, MEME_LIBRARY);
     }
 
+    // ═══ Phase 6: Language & Venues ═══════════════════════════════════
+    // Language by city
+    const langMatch = req.url?.match(/^\/api\/v1\/cities\/([a-z0-9_-]+)\/language$/);
+    if (req.method === "GET" && langMatch) {
+      const lang = publicLanguage(langMatch[1]);
+      if (!lang) return json(res, 404, { error: "city_not_found" });
+      return json(res, 200, lang);
+    }
+    if (req.method === "GET" && req.url === "/api/v1/languages") {
+      return json(res, 200, LANGUAGES);
+    }
+
+    // Venues
+    if (req.method === "GET" && req.url === "/api/v1/venues") {
+      return json(res, 200, allVenuesPublic());
+    }
+    const venueByIdMatch = req.url?.match(/^\/api\/v1\/venues\/([a-z0-9_-]+)$/);
+    if (req.method === "GET" && venueByIdMatch) {
+      const v = getVenue(venueByIdMatch[1]);
+      if (!v) return json(res, 404, { error: "venue_not_found" });
+      return json(res, 200, publicVenue(v));
+    }
+    const venuesByCityMatch = req.url?.match(/^\/api\/v1\/cities\/([a-z0-9_-]+)\/venues$/);
+    if (req.method === "GET" && venuesByCityMatch) {
+      return json(res, 200, venuesInCity(venuesByCityMatch[1]));
+    }
+
+    // Conversation seeds — venue's own + a blended global set
+    const seedsMatch = req.url?.match(/^\/api\/v1\/conversation-seeds\??(.*)$/);
+    if (req.method === "GET" && seedsMatch) {
+      const u = new URL(req.url, "http://x");
+      const venueId = u.searchParams.get("venueId");
+      const GLOBAL_SEEDS = [
+        "What will cities look like in 2050?",
+        "What's one tradition here that you hope never disappears?",
+        "If AI could travel, where would it want to go first?",
+        "What's the smallest change that creates the biggest difference?",
+        "What do you think makes a place feel like home?",
+        "Which craft or skill is worth learning in your city?",
+        "What's a question you wish more people asked you?",
+      ];
+      if (venueId) {
+        const v = getVenue(venueId);
+        if (!v) return json(res, 404, { error: "venue_not_found" });
+        const venueSeeds = v.conversation?.suggestedSeeds || [];
+        // Mix 3 venue seeds + 2 global seeds for variety
+        const shuffled = [...GLOBAL_SEEDS].sort(() => Math.random() - 0.5).slice(0, 2);
+        return json(res, 200, { seeds: [...venueSeeds.slice(0, 3), ...shuffled] });
+      }
+      return json(res, 200, { seeds: GLOBAL_SEEDS });
+    }
+
     // Public profile by userId (read-only, HTML-stripped, no tokens)
     const profileMatch = req.url?.match(/^\/api\/v1\/users\/([A-Za-z0-9-]+)\/profile$/);
     if (req.method === "GET" && profileMatch) {
@@ -1259,18 +1314,33 @@ Want to build your own space? Each bot gets **one room** — here's how:
       return json(res, 404, { error: "memory_not_found" });
     }
 
-    // ═══ Phase 5: Ask-an-Agent ═════════════════════════════════════════
+    // ═══ Phase 5 + 6: Ask-an-Agent (venue-aware, canned fallback) ═════
     if (req.method === "POST" && req.url === "/api/v1/ask") {
       let payload;
       try { payload = await readBody(req); }
       catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
-      const { fromUserId, fromName, toBotId, question, roomId } = payload || {};
+      const { fromUserId, fromName, toBotId, question, roomId, venueId: hintedVenueId } = payload || {};
       if (typeof fromUserId !== "string" || typeof toBotId !== "string"
           || typeof question !== "string" || typeof roomId !== "string") {
         return json(res, 400, { error: "missing_fields" });
       }
-      // Resolve the bot registry entry — toBotId is the human-visible socket id
-      // OR the hashed api key. We accept both by searching botRegistry first.
+
+      // Resolve venue context — prefer explicit hint, else compute from the
+      // asker's current grid position in the room.
+      let venue = null;
+      if (hintedVenueId) {
+        venue = getVenue(hintedVenueId);
+      } else {
+        const room = getCachedRoom(roomId);
+        const askerChar = room?.characters?.find((c) => c.userId === fromUserId);
+        if (askerChar?.position) {
+          const cityId = cityIdFromRoom(roomId);
+          const autoVenueId = findVenueAt(cityId, askerChar.position);
+          if (autoVenueId) venue = getVenue(autoVenueId);
+        }
+      }
+
+      // Resolve the bot registry entry.
       let botKey = null;
       let botReg = null;
       for (const [key, val] of (botRegistry?.entries?.() || [])) {
@@ -1278,15 +1348,61 @@ Want to build your own space? Each bot gets **one room** — here's how:
           botKey = key; botReg = val; break;
         }
       }
-      // Decide channel
-      let channel = "polling";
-      if (botReg && botReg.webhookUrl) channel = "both";
 
+      const hasLiveWebhook = !!(botReg && botReg.webhookUrl);
+
+      // If no live LLM-backed bot is reachable AND we have a venue, serve
+      // the canned answer *immediately* so the demo UX feels conversational.
+      // Returns early, no reply token needed.
+      if (!hasLiveWebhook && venue) {
+        const match = matchCannedAnswer(venue, question);
+        if (match) {
+          // Broadcast as a chat bubble from the venue host (so it feels in-world).
+          if (deps.io) {
+            deps.io.to(roomId).emit("playerChatMessage", {
+              id: `venue:${venue.id}`,
+              name: venue.name,
+              message: `@${fromName || "friend"} — ${match.answer}`,
+            });
+          }
+          // Still record a 🧠 learned fact for the asker so their profile reflects it.
+          const { appendToUserList } = await import("./userStore.js");
+          const factId = crypto.randomUUID ? crypto.randomUUID() : `lf_${Date.now()}`;
+          const fact = {
+            id: factId,
+            question: question.slice(0, 500),
+            answer: match.answer,
+            fromBotId: venue.host || venue.id,
+            fromBotName: venue.name,
+            cityId: venue.cityId,
+            learnedAt: Date.now(),
+          };
+          await appendToUserList(fromUserId, "learnedFacts", fact, 200);
+          addToFeed({
+            type: "fact",
+            actorUserId: fromUserId,
+            actorName: fromName || "",
+            cityId: venue.cityId,
+            text: `learned at ${venue.name}: ${match.answer.slice(0, 110)}${match.answer.length > 110 ? "…" : ""}`,
+            emoji: "🧠",
+            meta: { venueId: venue.id, question },
+          });
+          return json(res, 200, {
+            ok: true,
+            channel: "canned",
+            venue: { id: venue.id, name: venue.name },
+            answer: match.answer,
+            fact,
+          });
+        }
+      }
+
+      // Normal flow: mint a token and route to the bot.
+      const channel = hasLiveWebhook ? "both" : "polling";
       const result = createQuestion({ fromUserId, fromName, toBotId: botKey || toBotId, question, roomId, channel });
       if (!result.ok) return json(res, 400, result);
 
-      // Fire the webhook if configured (best-effort; polling path still queued).
-      if (botReg && botReg.webhookUrl) {
+      if (hasLiveWebhook) {
         try {
           await sendWebhook(botKey, {
             event: "question",
@@ -1294,13 +1410,16 @@ Want to build your own space? Each bot gets **one room** — here's how:
             fromUserId,
             fromName,
             roomId,
+            venue: venue ? {
+              id: venue.id, name: venue.name, type: venue.type,
+              stylePrompt: venue.conversation?.stylePrompt,
+              funFacts: venue.information?.funFacts,
+            } : null,
             replyToken: result.token,
             answerUrl: `${SERVER_URL}/api/v1/ask/${result.token}/answer`,
             timestamp: Date.now(),
           });
         } catch (e) {
-          // Webhook failed — polling queue still has the question, so the bot
-          // will eventually pick it up.
           console.warn("[ask] webhook failed:", e.message);
         }
       }
@@ -1309,7 +1428,12 @@ Want to build your own space? Each bot gets **one room** — here's how:
         ok: true,
         replyToken: result.token,
         channel,
+        venue: venue ? { id: venue.id, name: venue.name } : null,
         answerUrl: `${SERVER_URL}/api/v1/ask/${result.token}/answer`,
+        // Include a graceful-degradation note if no bot is configured and no canned match fired
+        note: (!hasLiveWebhook && !venue)
+          ? "No live bot + no venue context — answer will arrive only if a bot polls this question."
+          : undefined,
       });
     }
 

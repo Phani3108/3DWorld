@@ -17,7 +17,7 @@ import { Skyscraper } from "./Skyscraper";
 import { BulletinBoard } from "./BulletinBoard";
 import { showRoomSelectorAtom } from "./UI";
 import { Landmark } from "./landmarks/Landmark";
-import { cityAtom } from "./SocketManager";
+import { cityAtom, venuesInCityAtom, currentVenueAtom } from "./SocketManager";
 
 class AvatarErrorBoundary extends Component {
   state = { hasError: false };
@@ -151,6 +151,8 @@ export const Room = () => {
   const [, setShowRoomSelector] = useAtom(showRoomSelectorAtom);
   const [itemsCatalog] = useAtom(itemsAtom);
   const [, setCity] = useAtom(cityAtom);
+  const [venuesInCity] = useAtom(venuesInCityAtom);
+  const [currentVenue] = useAtom(currentVenueAtom);
 
   // Phase 3: Keep `cityAtom` in sync with the current map so UI chrome
   // (WorldMap button label, city info pill, etc.) can read the city directly.
@@ -495,6 +497,34 @@ export const Room = () => {
               gridDivision={map.gridDivision}
             />
           ))}
+        </group>
+      )}
+
+      {/* Venue floor decals — subtle tinted rectangles so you can SEE where
+          to walk for a themed experience. Current venue gets a stronger tint. */}
+      {!shopMode && isCity && venuesInCity && venuesInCity.length > 0 && (
+        <group raycast={() => null}>
+          {venuesInCity.map((v) => {
+            if (!v.footprint) return null;
+            const div = map.gridDivision || 2;
+            const worldX = (v.footprint.x + v.footprint.w / 2);
+            const worldZ = (v.footprint.z + v.footprint.d / 2);
+            const worldW = v.footprint.w;
+            const worldD = v.footprint.d;
+            const active = currentVenue?.id === v.id;
+            const color = active ? "#fbbf24" : (map?.theme?.palette?.accent || "#fb7185");
+            const opacity = active ? 0.35 : 0.12;
+            return (
+              <mesh
+                key={v.id}
+                rotation-x={-Math.PI / 2}
+                position={[worldX, 0.02, worldZ]}
+              >
+                <planeGeometry args={[worldW, worldD]} />
+                <meshBasicMaterial color={color} transparent opacity={opacity} />
+              </mesh>
+            );
+          })}
         </group>
       )}
 

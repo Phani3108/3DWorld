@@ -22,6 +22,8 @@ import { BulletinBoardPanel } from "./components/BulletinBoard";
 import ProfileCard from "./components/ProfileCard";
 import WorldMap from "./components/WorldMap";
 import FoodPanel from "./components/FoodPanel";
+import VenueInfoCard from "./components/VenueInfoCard";
+import LanguageBadge from "./components/LanguageBadge";
 import { updateProfile as apiUpdateProfile } from "./lib/api";
 
 class ErrorBoundary extends Component {
@@ -175,6 +177,8 @@ function App() {
       {loaded && <ProfileCard />}
       {loaded && <WorldMap />}
       {loaded && <FoodPanel />}
+      {loaded && <VenueInfoCard />}
+      {loaded && <LanguageBadge />}
       {loaded && showWelcome && (
         <>
           <BubblesBackground />

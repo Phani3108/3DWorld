@@ -75,6 +75,14 @@ export const inventoryAtom = atom({ food: [] });
 export const motivesAtom = atom({ energy: 100, hunger: 100, fun: 100, social: 100 });
 // Toggle for the FoodPanel overlay.
 export const foodPanelOpenAtom = atom(false);
+// Phase 6: current venue the local player is inside (or null)
+export const currentVenueAtom = atom(null);
+// Phase 6: per-city language info (greetings / filler / stylePrompt)
+export const languageAtom = atom(null);
+// Phase 6: venues inside the current city room
+export const venuesInCityAtom = atom([]);
+// Phase 6: in-flight greeting pop ("Aadab sahab!") to render briefly on arrival
+export const greetingPopAtom = atom(null);
 
 // Shared ref for the local player's live world position during movement.
 // Written by Avatar.jsx every frame, read by Minimap.jsx for smooth tracking.
@@ -149,6 +157,10 @@ export const SocketManager = () => {
   const [, setCharacterEating] = useAtom(characterEatingAtom);
   const [, setMotives] = useAtom(motivesAtom);
   const [, setInventory] = useAtom(inventoryAtom);
+  const [, setCurrentVenue] = useAtom(currentVenueAtom);
+  const [, setLanguage] = useAtom(languageAtom);
+  const [, setVenuesInCity] = useAtom(venuesInCityAtom);
+  const [, setGreetingPop] = useAtom(greetingPopAtom);
   const [_roomID, setRoomID] = useAtom(roomIDAtom);
   const [_agentThoughts, setAgentThoughts] = useAtom(agentThoughtsAtom);
   const [_activityEvents, setActivityEvents] = useAtom(activityEventsAtom);
@@ -247,6 +259,25 @@ export const SocketManager = () => {
     function onRoomJoined(value) {
       setMap(value.map);
       setUser(value.id);
+      // Phase 6: pull language / venues / greeting from the enriched map payload
+      if (value.map) {
+        setLanguage(value.map.language || null);
+        setVenuesInCity(Array.isArray(value.map.venues) ? value.map.venues : []);
+        if (value.map.localGreeting) {
+          const popAt = Date.now();
+          setGreetingPop({
+            text: value.map.localGreeting,
+            cityId: value.map.cityId,
+            at: popAt,
+          });
+          // Auto-dismiss after 4.5s (only if it's still *this* pop)
+          setTimeout(() => {
+            setGreetingPop((prev) => (prev && prev.at === popAt ? null : prev));
+          }, 4500);
+        }
+        // Clear stale venue state on room change
+        setCurrentVenue(null);
+      }
       if (value.userId && value.userId !== userId) {
         localStorage.setItem("3dworld_user_id", value.userId);
         setUserId(value.userId);
@@ -743,9 +774,19 @@ export const SocketManager = () => {
       setMotives(motives);
     }
 
+    function onVenueEnter({ venue }) {
+      if (!venue) return;
+      setCurrentVenue(venue);
+    }
+    function onVenueExit() {
+      setCurrentVenue(null);
+    }
+
     socket.on("characterReaction", onCharacterReaction);
     socket.on("characterEating", onCharacterEating);
     socket.on("motivesUpdate", onMotivesUpdate);
+    socket.on("venueEnter", onVenueEnter);
+    socket.on("venueExit", onVenueExit);
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
@@ -790,6 +831,8 @@ export const SocketManager = () => {
       socket.off("characterReaction", onCharacterReaction);
       socket.off("characterEating", onCharacterEating);
       socket.off("motivesUpdate", onMotivesUpdate);
+      socket.off("venueEnter", onVenueEnter);
+      socket.off("venueExit", onVenueExit);
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.off("roomJoined", onRoomJoined);

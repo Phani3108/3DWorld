@@ -2,6 +2,9 @@ import bcrypt from "bcrypt";
 import { listCitiesPublic } from "./shared/cityCatalog.js";
 import { sanitizeReaction } from "./reactionCatalog.js";
 import { getFood } from "./foodCatalog.js";
+import { findVenueAt, cityIdFromRoom } from "./venueService.js";
+import { getVenue, publicVenue, venuesInCity } from "./shared/venueCatalog.js";
+import { pickGreeting, publicLanguage } from "./shared/languageCatalog.js";
 
 // Build a keyed map once — avoids re-projecting on every welcome event.
 const CITIES_PUBLIC = Object.fromEntries(
@@ -452,6 +455,10 @@ export function registerSocketHandlers(deps) {
             landmarks: room.landmarks || [],
             tagline: room.tagline || null,
             emoji: room.emoji || null,
+            // Phase 6 additions
+            language: room.cityId ? publicLanguage(room.cityId) : null,
+            venues:   room.cityId ? venuesInCity(room.cityId) : [],
+            localGreeting: room.cityId ? pickGreeting(room.cityId) : null,
           },
           characters: stripCharacters(room.characters),
           id: socket.id,
@@ -486,6 +493,10 @@ export function registerSocketHandlers(deps) {
             landmarks: room.landmarks || [],
             tagline: room.tagline || null,
             emoji: room.emoji || null,
+            // Phase 6 additions
+            language: room.cityId ? publicLanguage(room.cityId) : null,
+            venues:   room.cityId ? venuesInCity(room.cityId) : [],
+            localGreeting: room.cityId ? pickGreeting(room.cityId) : null,
           },
           characters: stripCharacters(room.characters),
           id: socket.id,
@@ -628,6 +639,10 @@ export function registerSocketHandlers(deps) {
             landmarks: room.landmarks || [],
             tagline: room.tagline || null,
             emoji: room.emoji || null,
+            // Phase 6 additions
+            language: room.cityId ? publicLanguage(room.cityId) : null,
+            venues:   room.cityId ? venuesInCity(room.cityId) : [],
+            localGreeting: room.cityId ? pickGreeting(room.cityId) : null,
           },
           characters: stripCharacters(room.characters),
           id: socket.id,
@@ -779,6 +794,29 @@ export function registerSocketHandlers(deps) {
         // (Bots already do this; players need it too to prevent rubber-banding.)
         if (path.length > 0) {
           character.position = path[path.length - 1];
+        }
+
+        // ── Phase 6: Venue proximity ────────────────────────────────
+        // Check the endpoint position — whichever venue that lands in is
+        // the one we entered. Emit venueEnter/Exit to the mover's socket
+        // so the VenueInfoCard slides in/out.
+        const cityId = cityIdFromRoom(room.id);
+        if (cityId) {
+          const nextVenueId = findVenueAt(cityId, character.position);
+          const prev = character.currentVenueId || null;
+          if (nextVenueId !== prev) {
+            character.currentVenueId = nextVenueId;
+            if (prev) socket.emit("venueExit", { id: prev });
+            if (nextVenueId) {
+              const v = getVenue(nextVenueId);
+              socket.emit("venueEnter", { venue: publicVenue(v) });
+            }
+            // Broadcast presence change so others can see who's in which venue.
+            io.to(room.id).emit("characterVenueChange", {
+              characterId: socket.id,
+              venueId: nextVenueId,
+            });
+          }
         }
       });
 
@@ -1160,6 +1198,10 @@ export function registerSocketHandlers(deps) {
             landmarks: room.landmarks || [],
             tagline: room.tagline || null,
             emoji: room.emoji || null,
+            // Phase 6 additions
+            language: room.cityId ? publicLanguage(room.cityId) : null,
+            venues:   room.cityId ? venuesInCity(room.cityId) : [],
+            localGreeting: room.cityId ? pickGreeting(room.cityId) : null,
           },
           characters: stripCharacters(room.characters),
           id: socket.id,
@@ -1477,6 +1519,10 @@ export function registerSocketHandlers(deps) {
             landmarks: room.landmarks || [],
             tagline: room.tagline || null,
             emoji: room.emoji || null,
+            // Phase 6 additions
+            language: room.cityId ? publicLanguage(room.cityId) : null,
+            venues:   room.cityId ? venuesInCity(room.cityId) : [],
+            localGreeting: room.cityId ? pickGreeting(room.cityId) : null,
           },
         });
 
@@ -1554,6 +1600,10 @@ export function registerSocketHandlers(deps) {
             landmarks: room.landmarks || [],
             tagline: room.tagline || null,
             emoji: room.emoji || null,
+            // Phase 6 additions
+            language: room.cityId ? publicLanguage(room.cityId) : null,
+            venues:   room.cityId ? venuesInCity(room.cityId) : [],
+            localGreeting: room.cityId ? pickGreeting(room.cityId) : null,
           },
         });
 

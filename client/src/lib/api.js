@@ -64,5 +64,15 @@ export const fetchWorldFeed = (limit = 50) =>
 export const postMemory = (userId, imageBase64, caption, cityId, nearbyUserIds) =>
   postJSON("/api/v1/memories", { userId, imageBase64, caption, cityId, nearbyUserIds });
 
-export const askAgent = (fromUserId, fromName, toBotId, question, roomId) =>
-  postJSON("/api/v1/ask", { fromUserId, fromName, toBotId, question, roomId });
+export const askAgent = (fromUserId, fromName, toBotId, question, roomId, venueId) =>
+  postJSON("/api/v1/ask", { fromUserId, fromName, toBotId, question, roomId, venueId });
+
+// ── Phase 6: Language + Venues ─────────────────────────────────────
+export const fetchCityLanguage = (cityId) =>
+  getJSON(`/api/v1/cities/${encodeURIComponent(cityId)}/language`);
+export const fetchVenue = (venueId) =>
+  getJSON(`/api/v1/venues/${encodeURIComponent(venueId)}`);
+export const fetchVenuesInCity = (cityId) =>
+  getJSON(`/api/v1/cities/${encodeURIComponent(cityId)}/venues`);
+export const fetchConversationSeeds = (venueId) =>
+  getJSON(`/api/v1/conversation-seeds${venueId ? `?venueId=${encodeURIComponent(venueId)}` : ""}`);
