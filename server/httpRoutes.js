@@ -15,6 +15,7 @@ import { getVenue, publicVenue, venuesInCity, allVenuesPublic, matchCannedAnswer
 import { findVenueAt, cityIdFromRoom } from "./venueService.js";
 import { allResidentsPublic, publicResident, residentsInCity, getResident } from "./shared/residentCatalog.js";
 import { findResidentCharacter } from "./residentService.js";
+import { VEHICLES, getVehicle, allVehiclesPublic, DEFAULT_VEHICLE_ID } from "./shared/vehicleCatalog.js";
 
 export const createHttpHandler = (deps) => {
   const {
@@ -1015,6 +1016,62 @@ Want to build your own space? Each bot gets **one room** — here's how:
     }
     if (req.method === "GET" && req.url === "/api/v1/languages") {
       return json(res, 200, LANGUAGES);
+    }
+
+    // Vehicles (Phase 7C.4)
+    if (req.method === "GET" && req.url === "/api/v1/vehicles") {
+      return json(res, 200, allVehiclesPublic());
+    }
+    // Set current vehicle (charges coinPerTrip up-front on switch to paid modes)
+    const vehicleSetMatch = req.url?.match(/^\/api\/v1\/users\/([A-Za-z0-9_-]+)\/vehicle$/);
+    if (req.method === "POST" && vehicleSetMatch) {
+      let payload;
+      try { payload = await readBody(req); }
+      catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
+      const userId = vehicleSetMatch[1];
+      const { vehicleId } = payload || {};
+      const v = getVehicle(vehicleId);
+      if (!v) return json(res, 404, { error: "vehicle_not_found" });
+      const { getUser, updateUserCoins } = await import("./userStore.js");
+      const user = await getUser(userId);
+      if (!user) return json(res, 404, { error: "user_not_found" });
+      // Charge coins if vehicle has a cost and the user isn't already on it
+      const prev = user.vehicleId || DEFAULT_VEHICLE_ID;
+      let newBalance = user.coins;
+      if (vehicleId !== prev && v.coinPerTrip > 0) {
+        if ((user.coins || 0) < v.coinPerTrip) {
+          return json(res, 400, { error: "insufficient_coins", need: v.coinPerTrip, have: user.coins || 0 });
+        }
+        const n = await updateUserCoins(userId, -v.coinPerTrip);
+        if (typeof n !== "number") return json(res, 500, { error: "coins_update_failed" });
+        newBalance = n;
+      }
+      // Persist vehicleId on the user record
+      user.vehicleId = vehicleId;
+      user.updatedAt = Date.now();
+      const { persistUsers } = await import("./userStore.js");
+      persistUsers?.();
+      // Push coinsUpdate + broadcast characterVehicleChange so other clients re-render the 3D rig
+      if (userSockets && deps.io) {
+        const sockets = userSockets.get?.(userId);
+        if (sockets) {
+          for (const sid of sockets) {
+            deps.io.to(sid).emit("coinsUpdate", { coins: newBalance });
+          }
+        }
+      }
+      // Find the user's current room + broadcast to it
+      if (deps.io) {
+        for (const r of rooms) {
+          const ch = r.characters?.find((c) => c.userId === userId);
+          if (ch) {
+            ch.vehicleId = vehicleId;
+            deps.io.to(r.id).emit("characterVehicleChange", { characterId: ch.id, vehicleId });
+            break;
+          }
+        }
+      }
+      return json(res, 200, { ok: true, vehicleId, coins: newBalance, cost: (vehicleId === prev ? 0 : v.coinPerTrip) });
     }
 
     // Residents (Phase 7)

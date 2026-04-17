@@ -203,6 +203,7 @@ export const Avatar = memo(function Avatar({
   leaving = false,
   gridPosition,
   showHtmlOverlay = true,
+  vehicleId = "walk",
 }) {
   const [chatMessage, setChatMessage] = useState("");
   const [actionStatus, setActionStatus] = useState(null); // { action, detail }
@@ -1318,9 +1319,102 @@ export const Avatar = memo(function Avatar({
           />
         </mesh>
       )}
+
+      {/* Phase 7C.4: Vehicle rig — small primitives beneath the avatar */}
+      {vehicleId && vehicleId !== "walk" && (
+        <VehicleRig type={vehicleId} />
+      )}
     </group>
   );
 });
+
+// ── Phase 7C.4: Tiny primitive vehicle rigs ──────────────────────────
+// Rendered at the character's feet. Non-raycastable, non-interactive.
+const VehicleRig = ({ type }) => {
+  if (type === "cycle") {
+    return (
+      <group raycast={() => null}>
+        {[[-0.25, 0, 0], [0.25, 0, 0]].map(([x], i) => (
+          <mesh key={i} position={[x, 0.18, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.16, 0.025, 8, 20]} />
+            <meshStandardMaterial color="#1f2937" />
+          </mesh>
+        ))}
+        <mesh position={[0, 0.28, 0]}>
+          <boxGeometry args={[0.5, 0.04, 0.06]} />
+          <meshStandardMaterial color="#ef4444" />
+        </mesh>
+      </group>
+    );
+  }
+  if (type === "auto") {
+    return (
+      <group raycast={() => null}>
+        {/* 3 wheels */}
+        <mesh position={[0, 0.12, 0.32]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.12, 0.04, 8, 20]} />
+          <meshStandardMaterial color="#111" />
+        </mesh>
+        {[[-0.25, 0, -0.25], [0.25, 0, -0.25]].map(([x, , z], i) => (
+          <mesh key={i} position={[x, 0.12, z]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.12, 0.04, 8, 20]} />
+            <meshStandardMaterial color="#111" />
+          </mesh>
+        ))}
+        {/* Yellow-green tuk-tuk body */}
+        <mesh position={[0, 0.35, 0]}>
+          <boxGeometry args={[0.55, 0.4, 0.7]} />
+          <meshStandardMaterial color="#facc15" />
+        </mesh>
+        <mesh position={[0, 0.6, 0]}>
+          <boxGeometry args={[0.5, 0.1, 0.6]} />
+          <meshStandardMaterial color="#16a34a" />
+        </mesh>
+      </group>
+    );
+  }
+  if (type === "bike") {
+    return (
+      <group raycast={() => null}>
+        <mesh position={[0, 0.16, 0.25]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.14, 0.04, 8, 20]} />
+          <meshStandardMaterial color="#0f172a" />
+        </mesh>
+        <mesh position={[0, 0.16, -0.25]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.14, 0.04, 8, 20]} />
+          <meshStandardMaterial color="#0f172a" />
+        </mesh>
+        <mesh position={[0, 0.32, 0]}>
+          <boxGeometry args={[0.18, 0.12, 0.7]} />
+          <meshStandardMaterial color="#dc2626" />
+        </mesh>
+      </group>
+    );
+  }
+  if (type === "car") {
+    return (
+      <group raycast={() => null}>
+        {[[-0.32, 0.12, 0.32], [0.32, 0.12, 0.32], [-0.32, 0.12, -0.32], [0.32, 0.12, -0.32]].map(
+          (p, i) => (
+            <mesh key={i} position={p} rotation={[Math.PI / 2, 0, 0]}>
+              <torusGeometry args={[0.1, 0.04, 8, 18]} />
+              <meshStandardMaterial color="#111" />
+            </mesh>
+          ),
+        )}
+        <mesh position={[0, 0.32, 0]}>
+          <boxGeometry args={[0.75, 0.25, 1.0]} />
+          <meshStandardMaterial color="#3b82f6" />
+        </mesh>
+        <mesh position={[0, 0.52, -0.05]}>
+          <boxGeometry args={[0.6, 0.18, 0.6]} />
+          <meshStandardMaterial color="#60a5fa" transparent opacity={0.85} />
+        </mesh>
+      </group>
+    );
+  }
+  return null;
+};
 
 // --- Avatar Portrait Renderer ---
 // Renders a close-up face portrait of a character model off-screen

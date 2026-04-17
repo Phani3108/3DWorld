@@ -421,6 +421,13 @@ export function registerSocketHandlers(deps) {
         if (newSessionToken) {
           await setSessionToken(resolvedUserId, newSessionToken);
         }
+        // Pull vehicleId from the user's persisted profile if available.
+        let persistedVehicleId = "walk";
+        try {
+          const { getUser: _getUser } = await import("./userStore.js");
+          const u = await _getUser(resolvedUserId);
+          if (u?.vehicleId) persistedVehicleId = u.vehicleId;
+        } catch {}
         character = {
           id: socket.id,
           userId: resolvedUserId,
@@ -431,6 +438,7 @@ export function registerSocketHandlers(deps) {
           isOfficialBot,
           name: displayName,
           coins: playerCoins.get(resolvedUserId) || DEFAULT_COINS,
+          vehicleId: persistedVehicleId,
         };
         if (!room.password) character.canUpdateRoom = true;
         // Check if this join was triggered by a room invite

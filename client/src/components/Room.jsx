@@ -130,6 +130,7 @@ const CharacterList = React.memo(() => {
               isBot={character.isBot}
               leaving={character.leaving}
               showHtmlOverlay={htmlVisibleSet.has(character.id)}
+              vehicleId={character.vehicleId}
             />
           </Suspense>
         </AvatarErrorBoundary>

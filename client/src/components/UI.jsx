@@ -29,12 +29,14 @@ import {
   objectivesAtom,
   worldMapOpenAtom,
   foodPanelOpenAtom,
+  cameraOverviewAtom,
 } from "./SocketManager";
 import DirectMessagePanel, { dmPanelTargetAtom } from "./DirectMessagePanel";
 import WalletPanel from "./WalletPanel";
 import EmojiMemePicker from "./EmojiMemePicker";
 import ScreenshotButton from "./ScreenshotButton";
 import StoryComposer from "./StoryComposer";
+import VehiclePicker from "./VehiclePicker";
 import { renderAvatarPortrait } from "./Avatar";
 import soundManager from "../audio/SoundManager";
 
@@ -1380,8 +1382,10 @@ export const UI = () => {
   const [walletOpen, setWalletOpen] = useAtom(walletOpenAtom);
   const [, setWorldMapOpen] = useAtom(worldMapOpenAtom);
   const [, setFoodPanelOpen] = useAtom(foodPanelOpenAtom);
+  const [cameraOverview, setCameraOverview] = useAtom(cameraOverviewAtom);
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const [storyComposerOpen, setStoryComposerOpen] = useState(false);
+  const [vehiclePickerOpen, setVehiclePickerOpen] = useState(false);
   const [objectives] = useAtom(objectivesAtom);
   // Safety timeout: force-clear the transition overlay if it stays active too long
   useEffect(() => {
@@ -1847,6 +1851,46 @@ export const UI = () => {
                     <span className="text-xl sm:text-2xl leading-none">🍽️</span>
                     <span className="text-[10px] sm:text-xs text-amber-600 group-hover:text-amber-800 font-medium transition-colors">Food</span>
                   </button>
+                )}
+
+                {/* Overview toggle (Phase 7C.2) — bird's-eye of the whole city */}
+                {roomID && (
+                  <button
+                    className={`flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer transition-colors group ${
+                      cameraOverview ? "bg-sky-100 text-sky-700" : "hover:bg-slate-100"
+                    }`}
+                    onClick={() => {
+                      soundManager.play("button_click");
+                      setCameraOverview((v) => !v);
+                    }}
+                    title={cameraOverview ? "Back to character view" : "See the whole city"}
+                  >
+                    <span className="text-xl sm:text-2xl leading-none">
+                      {cameraOverview ? "📍" : "🗺️"}
+                    </span>
+                    <span className={`text-[10px] sm:text-xs font-medium transition-colors ${cameraOverview ? "text-sky-700" : "text-slate-500 group-hover:text-slate-700"}`}>
+                      {cameraOverview ? "Zoom in" : "Overview"}
+                    </span>
+                  </button>
+                )}
+
+                {/* Vehicle picker (Phase 7C.4) */}
+                {roomID && (
+                  <div className="relative">
+                    <button
+                      className={`flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer transition-colors group ${
+                        vehiclePickerOpen ? "bg-amber-100 text-amber-700" : "hover:bg-amber-50"
+                      }`}
+                      onClick={(e) => { e.stopPropagation(); soundManager.play("button_click"); setVehiclePickerOpen((v) => !v); }}
+                      title="Choose how to travel"
+                    >
+                      <span className="text-xl sm:text-2xl leading-none">🛺</span>
+                      <span className="text-[10px] sm:text-xs text-amber-600 group-hover:text-amber-800 font-medium transition-colors">
+                        Ride
+                      </span>
+                    </button>
+                    <VehiclePicker open={vehiclePickerOpen} onClose={() => setVehiclePickerOpen(false)} />
+                  </div>
                 )}
 
                 {/* Screenshot (Phase 5) */}

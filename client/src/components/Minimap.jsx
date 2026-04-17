@@ -1,6 +1,6 @@
 import { useAtom } from "jotai";
 import { useRef, useEffect, useCallback, useState } from "react";
-import { charactersAtom, mapAtom, userAtom, socket, selfLivePosition } from "./SocketManager";
+import { charactersAtom, mapAtom, userAtom, socket, selfLivePosition, venuesInCityAtom, currentVenueAtom } from "./SocketManager";
 import { buildModeAtom, shopModeAtom } from "./UI";
 
 // Building footprints for plaza rooms (duplicated from server/shared/roomConstants.js)
@@ -33,6 +33,8 @@ export const Minimap = () => {
   const [user] = useAtom(userAtom);
   const [buildMode] = useAtom(buildModeAtom);
   const [shopMode] = useAtom(shopModeAtom);
+  const [venuesInCity] = useAtom(venuesInCityAtom);
+  const [currentVenue] = useAtom(currentVenueAtom);
   const [collapsed, setCollapsed] = useState(false);
   const [tooltip, setTooltip] = useState(null); // { name, isBot, x, y }
 
@@ -40,7 +42,7 @@ export const Minimap = () => {
   const destinationRef = useRef(null); // [gridX, gridY] or null
 
   // Cache refs so the animation loop doesn't depend on atom re-renders
-  const dataRef = useRef({ characters: [], map: null, user: null });
+  const dataRef = useRef({ characters: [], map: null, user: null, venues: [], currentVenueId: null });
   useEffect(() => {
     dataRef.current.characters = characters;
   }, [characters]);
@@ -50,6 +52,12 @@ export const Minimap = () => {
   useEffect(() => {
     dataRef.current.user = user;
   }, [user]);
+  useEffect(() => {
+    dataRef.current.venues = Array.isArray(venuesInCity) ? venuesInCity : [];
+  }, [venuesInCity]);
+  useEffect(() => {
+    dataRef.current.currentVenueId = currentVenue?.id || null;
+  }, [currentVenue]);
 
   // Pulse animation for self dot
   const pulseRef = useRef(0);
@@ -73,7 +81,7 @@ export const Minimap = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    const { characters, map, user } = dataRef.current;
+    const { characters, map, user, venues, currentVenueId } = dataRef.current;
 
     // Handle DPR changes (e.g. dragging window between monitors)
     const dpr = window.devicePixelRatio || 1;
@@ -153,6 +161,34 @@ export const Minimap = () => {
       });
     }
 
+    // Phase 7C.3: Venue footprints + labels on minimap
+    if (venues && venues.length > 0) {
+      venues.forEach((v) => {
+        if (!v.footprint) return;
+        const [vx, vy] = toScreen(v.footprint.x, v.footprint.z);
+        const vw = v.footprint.w * scale;
+        const vh = v.footprint.d * scale;
+        const isCurrent = v.id === currentVenueId;
+        ctx.fillStyle = isCurrent
+          ? "rgba(251, 191, 36, 0.35)"          // amber glow when you're inside
+          : "rgba(251, 113, 133, 0.18)";        // subtle rose otherwise
+        ctx.fillRect(vx, vy, vw, vh);
+        ctx.strokeStyle = isCurrent
+          ? "rgba(217, 119, 6, 0.9)"
+          : "rgba(225, 29, 72, 0.4)";
+        ctx.lineWidth = isCurrent ? 1.5 : 0.8;
+        ctx.strokeRect(vx, vy, vw, vh);
+        // Emoji label at centre when scale big enough
+        if (scale > 1.2) {
+          ctx.fillStyle = "rgba(15, 23, 42, 0.75)";
+          ctx.font = "bold 9px sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(v.emoji || "📍", vx + vw / 2, vy + vh / 2);
+        }
+      });
+    }
+
     // Items (furniture) — small subtle dots
     if (map.items && map.items.length > 0) {
       ctx.fillStyle = "rgba(148, 163, 184, 0.4)";
@@ -205,19 +241,27 @@ export const Minimap = () => {
     const self = characters.find((c) => c.id === user);
     const others = characters.filter((c) => c.id !== user);
 
-    // Other characters
+    // Other characters — Phase 7B/C.3 differentiation: bots render as
+    // small cyan squares, humans stay round.
     others.forEach((c) => {
       if (!c.position) return;
       const wx = c.position[0] / gd;
       const wz = c.position[1] / gd;
       const [sx, sy] = toScreen(wx, wz);
-      const r = c.isBot ? DOT_RADIUS_BOT : DOT_RADIUS_OTHER;
-      const color = c.isBot ? "rgba(251, 146, 60, 0.85)" : "rgba(56, 139, 253, 0.9)";
-
-      ctx.beginPath();
-      ctx.arc(sx, sy, r, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
+      if (c.isBot) {
+        const s = DOT_RADIUS_BOT * 1.8;
+        ctx.fillStyle = "rgba(34, 211, 238, 0.95)";
+        ctx.fillRect(sx - s / 2, sy - s / 2, s, s);
+        ctx.strokeStyle = "rgba(6, 78, 98, 0.8)";
+        ctx.lineWidth = 0.6;
+        ctx.strokeRect(sx - s / 2, sy - s / 2, s, s);
+      } else {
+        const r = DOT_RADIUS_OTHER;
+        ctx.beginPath();
+        ctx.arc(sx, sy, r, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(56, 139, 253, 0.9)";
+        ctx.fill();
+      }
     });
 
     // Self — use live interpolated position from Avatar, fall back to atom position
@@ -307,7 +351,8 @@ export const Minimap = () => {
     };
   }, []);
 
-  // Click-to-move handler
+  // Click-to-move handler — Phase 7C.3 adds "click on a venue footprint →
+  // auto-path to its centre" so the minimap doubles as a venue picker.
   const handleCanvasClick = useCallback((e) => {
     if (e.button !== 0) return; // left click only
     const pos = getCanvasPos(e);
@@ -316,7 +361,7 @@ export const Minimap = () => {
     const world = canvasToWorld(pos.x, pos.y);
     if (!world) return;
 
-    const { characters, map, user } = dataRef.current;
+    const { characters, map, user, venues } = dataRef.current;
     if (!map || !user) return;
 
     const gd = map.gridDivision || 1;
@@ -326,11 +371,25 @@ export const Minimap = () => {
     const clampedX = Math.max(0, Math.min(world.wx, mapW));
     const clampedZ = Math.max(0, Math.min(world.wz, mapH));
 
-    // Convert to grid coordinates
-    const targetGrid = [
+    // Phase 7C.3: if the click lands inside a venue footprint, re-target
+    // the centre of that venue so the player reliably arrives at a
+    // walkable spot (not the exact pixel they clicked).
+    let targetGrid = [
       Math.floor(clampedX * gd),
       Math.floor(clampedZ * gd),
     ];
+    if (Array.isArray(venues) && venues.length > 0) {
+      const hitVenue = venues.find((v) => {
+        if (!v.footprint) return false;
+        const { x, z, w, d } = v.footprint;
+        return clampedX >= x && clampedX <= x + w && clampedZ >= z && clampedZ <= z + d;
+      });
+      if (hitVenue && hitVenue.footprint) {
+        const cx = hitVenue.footprint.x + hitVenue.footprint.w / 2;
+        const cz = hitVenue.footprint.z + hitVenue.footprint.d / 2;
+        targetGrid = [Math.floor(cx * gd), Math.floor(cz * gd)];
+      }
+    }
 
     // Get current position — prefer live position from Avatar
     const livePos = selfLivePosition.current;

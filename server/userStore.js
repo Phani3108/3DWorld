@@ -47,6 +47,9 @@ const persistUsers = () => {
   const payload = [...users.values()];
   atomicWriteJson(USERS_FILE, payload);
 };
+// Phase 7C.4: re-exported so httpRoutes can force a flush after mutating
+// a user record directly (e.g. setting vehicleId).
+export { persistUsers };
 
 // ── Motives (Sims-style needs) defaults ─────────────────────────────
 // Applied to every user record so humans get the same mechanic that bots
@@ -71,6 +74,7 @@ const ensureProfileDefaults = (user) => {
   if (!user.motives) user.motives = { ...DEFAULT_MOTIVES, updatedAt: Date.now() };
   if (!user.inventory) user.inventory = { food: [] };
   if (user.teachingCount === undefined) user.teachingCount = 0;
+  if (user.vehicleId === undefined) user.vehicleId = "walk";
   return user;
 };
 

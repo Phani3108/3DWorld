@@ -84,6 +84,9 @@ export const venuesInCityAtom = atom([]);
 // Phase 6: in-flight greeting pop ("Aadab sahab!") to render briefly on arrival
 export const greetingPopAtom = atom(null);
 
+// Phase 7C.2: camera overview state (true = bird's-eye of whole city)
+export const cameraOverviewAtom = atom(false);
+
 // Shared ref for the local player's live world position during movement.
 // Written by Avatar.jsx every frame, read by Minimap.jsx for smooth tracking.
 // Uses a plain object (not an atom) to avoid triggering React re-renders.
@@ -782,11 +785,20 @@ export const SocketManager = () => {
       setCurrentVenue(null);
     }
 
+    // Phase 7C.4: a character switched vehicle — update the characters atom
+    // so the client can re-render the 3D rig under them.
+    function onCharacterVehicleChange({ characterId, vehicleId }) {
+      setCharacters((prev) =>
+        prev.map((c) => (c.id === characterId ? { ...c, vehicleId } : c))
+      );
+    }
+
     socket.on("characterReaction", onCharacterReaction);
     socket.on("characterEating", onCharacterEating);
     socket.on("motivesUpdate", onMotivesUpdate);
     socket.on("venueEnter", onVenueEnter);
     socket.on("venueExit", onVenueExit);
+    socket.on("characterVehicleChange", onCharacterVehicleChange);
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
@@ -833,6 +845,7 @@ export const SocketManager = () => {
       socket.off("motivesUpdate", onMotivesUpdate);
       socket.off("venueEnter", onVenueEnter);
       socket.off("venueExit", onVenueExit);
+      socket.off("characterVehicleChange", onCharacterVehicleChange);
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.off("roomJoined", onRoomJoined);

@@ -4,13 +4,13 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useAtom } from "jotai";
 import { useEffect, useRef } from "react";
 import { Room } from "./Room";
-import { mapAtom, roomIDAtom, userAtom } from "./SocketManager";
+import { mapAtom, roomIDAtom, userAtom, cameraOverviewAtom } from "./SocketManager";
 import { buildModeAtom, shopModeAtom } from "./UI";
 import { followedCharacterAtom } from "./Avatar";
 
-const MIN_ZOOM = 8;
-const MAX_ZOOM = 40;
-const ZOOM_SPEED = 2;
+const MIN_ZOOM = 6;   // a little closer than before for portraits / hotspot reads
+const MAX_ZOOM = 90;  // raised for wider city overview via scroll wheel
+const ZOOM_SPEED = 3; // slightly faster so the expanded range still reaches fast
 const DEFAULT_ZOOM = 12;
 const ROTATE_SPEED = 0.005; // radians per pixel of mouse drag
 const ROTATE_KEY_SPEED = 2; // radians per second for Q/E keys
@@ -29,6 +29,8 @@ export const Experience = ({ loaded }) => {
   const [map] = useAtom(mapAtom);
   const [user] = useAtom(userAtom);
   const [followedCharacter] = useAtom(followedCharacterAtom);
+  const [cameraOverview, setCameraOverview] = useAtom(cameraOverviewAtom);
+  const overviewAutoUntil = useRef(0); // wall-clock ms — auto-return to follow after this
   const characterRef = useRef(null);
   const followedRef = useRef(null);
   const frameCount = useRef(0);
@@ -139,13 +141,16 @@ export const Experience = ({ loaded }) => {
       return;
     }
 
-    // ROOM
+    // ROOM — trigger an auto-overview fly-over on arrival so the player sees
+    // the whole city first, then drops to character-follow after ~2.6s.
     if (!buildMode && !shopMode && roomID) {
       controls.current.setPosition(0, 10, 5);
       controls.current.setTarget(0, 10, 0);
+      setCameraOverview(true);
+      overviewAutoUntil.current = Date.now() + 2600;
       return;
     }
-  }, [buildMode, roomID, shopMode, loaded]);
+  }, [buildMode, roomID, shopMode, loaded, setCameraOverview]);
 
   useFrame(({ scene }, delta) => {
     if (!user) return;
@@ -173,6 +178,29 @@ export const Experience = ({ loaded }) => {
     if (shopMode) return;
 
     frameCount.current++;
+
+    // Phase 7C.2: auto-exit the overview flyover after its timer expires.
+    if (cameraOverview && overviewAutoUntil.current && Date.now() > overviewAutoUntil.current) {
+      overviewAutoUntil.current = 0;
+      setCameraOverview(false);
+    }
+
+    // Phase 7C.2: city-overview mode — aim the camera at the city centre
+    // from directly above so the whole footprint is visible. Ignore
+    // character-follow logic while in overview.
+    if (cameraOverview && map?.size && controls.current) {
+      const centerX = map.size[0] / 2;
+      const centerZ = map.size[1] / 2;
+      const h = Math.max(map.size[0], map.size[1]) * 0.9;
+      controls.current.setTarget(centerX, 0, centerZ, true);
+      controls.current.setPosition(
+        centerX + 2,       // tiny offset for depth cue
+        h,
+        centerZ + h * 0.35, // slight pull-back so it's a 3/4 aerial not a flat top-down
+        true,
+      );
+      return;
+    }
 
     // Handle Q/E keyboard rotation
     if (keysPressed.current["q"]) {
