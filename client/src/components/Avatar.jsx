@@ -9,7 +9,7 @@ import { atom, useAtom } from "jotai";
 import React, { useEffect, useMemo, useRef, useState, memo, useCallback } from "react";
 import { SkeletonUtils } from "three-stdlib";
 import { useGrid } from "../hooks/useGrid";
-import { socket, userAtom, avatarDispatch, bondsAtom, charactersAtom, characterEmotionsAtom, dmInboxOpenAtom, selfLivePosition, mapAtom } from "./SocketManager";
+import { socket, userAtom, avatarDispatch, bondsAtom, charactersAtom, characterEmotionsAtom, dmInboxOpenAtom, selfLivePosition, mapAtom, profileViewTargetAtom } from "./SocketManager";
 import { dmPanelTargetAtom } from "./DirectMessagePanel";
 import soundManager from "../audio/SoundManager";
 
@@ -196,6 +196,7 @@ export function applyProceduralAnimation(state, time, bones, restPoses) {
 
 export const Avatar = memo(function Avatar({
   id,
+  userId,
   avatarUrl = "/models/sillyNubCat.glb",
   name = "Player",
   isBot = false,
@@ -209,6 +210,7 @@ export const Avatar = memo(function Avatar({
   const [bondEmote, setBondEmote] = useState(null); // "highfive" | "hug" | null
   const [, setSelectedCharacter] = useAtom(selectedCharacterAtom);
   const [followedCharacter, setFollowedCharacter] = useAtom(followedCharacterAtom);
+  const [, setProfileViewTarget] = useAtom(profileViewTargetAtom);
   const { gridToVector3 } = useGrid();
   const position = useMemo(() => gridToVector3(gridPosition), []);
   // Use refs for culling state to avoid re-renders from useFrame distance checks
@@ -1009,6 +1011,15 @@ export const Avatar = memo(function Avatar({
     setHovered(false);
   }, [id, name, followedCharacter, setFollowedCharacter]);
 
+  const handleHoverViewProfile = useCallback((e) => {
+    e.stopPropagation();
+    // Prefer the persistent userId; fall back to the ephemeral socket id
+    // (only characters that predate the userId plumbing; still lets the
+    // endpoint return a 404 gracefully instead of nothing happening).
+    setProfileViewTarget(userId || id);
+    setHovered(false);
+  }, [id, userId, setProfileViewTarget]);
+
   return (
     <group
       ref={group}
@@ -1092,6 +1103,18 @@ export const Avatar = memo(function Avatar({
                   }}
                 >
                   <span>{followedCharacter?.id === id ? "\u{1F441}\uFE0F" : "\u{1F4F7}"}</span> {followedCharacter?.id === id ? "Unfollow" : "Follow"}
+                </button>
+                <button
+                  onClick={handleHoverViewProfile}
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium text-white cursor-pointer transition-all hover:scale-105 active:scale-95"
+                  style={{
+                    background: 'rgba(0,0,0,0.55)',
+                    backdropFilter: 'blur(4px)',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                  }}
+                  title="View profile"
+                >
+                  <span>{"\u{1F464}"}</span> Profile
                 </button>
               </div>
             </Html>

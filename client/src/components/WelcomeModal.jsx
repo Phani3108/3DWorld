@@ -1,9 +1,16 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
+import { AvatarPicker } from "./AvatarPicker";
+import { AccentPicker } from "./AccentPicker";
+import { ProfileForm } from "./ProfileForm";
 
 export const WelcomeModal = ({ onChoice }) => {
-  const [step, setStep] = useState("choose"); // "choose" | "human" | "instructions" | "agent"
+  // steps: "choose" → "human" (name) → "avatar" (pick+accent) → "about" (optional profile) → enter
+  const [step, setStep] = useState("choose");
   const [humanName, setHumanName] = useState(localStorage.getItem("3dworld_username") || "");
+  const [avatarUrl, setAvatarUrl] = useState(localStorage.getItem("avatarURL") || "");
+  const [accentId, setAccentId] = useState(localStorage.getItem("3dworld_accent") || "sky");
+  const [profile, setProfile] = useState({ pronouns: "", bio: "", homeCity: null, socials: {} });
   const [activeTab, setActiveTab] = useState("3dhub");
   const [agentTab, setAgentTab] = useState("3dhub");
   const [copied, setCopied] = useState(null);
@@ -26,7 +33,26 @@ export const WelcomeModal = ({ onChoice }) => {
   const submitHumanEntry = (name) => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    onChoice("human", trimmed);
+    // Move to avatar/accent step (all new fields are optional; user can skip to finish)
+    setStep("avatar");
+  };
+
+  const finishOnboarding = (profilePatch = profile) => {
+    const trimmed = humanName.trim();
+    if (!trimmed) return;
+    if (avatarUrl) localStorage.setItem("avatarURL", avatarUrl);
+    if (accentId)  localStorage.setItem("3dworld_accent", accentId);
+    // Mark that they made an explicit avatar choice so the default-fallback
+    // logic in SocketManager doesn't overwrite it.
+    localStorage.setItem("3dworld_avatar_chosen", "1");
+    onChoice("human", trimmed, {
+      avatarUrl: avatarUrl || undefined,
+      accentId,
+      pronouns: profilePatch.pronouns || "",
+      bio: profilePatch.bio || "",
+      homeCity: profilePatch.homeCity || null,
+      socials: profilePatch.socials || {},
+    });
   };
 
   const springTransition = {
@@ -229,6 +255,99 @@ export const WelcomeModal = ({ onChoice }) => {
                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-slate-800 text-white text-xs font-bold flex items-center justify-center mt-0.5">3</span>
                 <p className="text-gray-300 text-sm">Keep this tab open and chat once they appear in-world</p>
               </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Avatar + Accent step ─────────────────────────────── */}
+        {step === "avatar" && (
+          <motion.div
+            key="avatar"
+            className="bg-[#1a1a2e] border border-sky-400/30 rounded-2xl shadow-[0_0_30px_rgba(56,189,248,0.15)] z-10 w-full max-w-lg mx-4 p-6 flex flex-col max-h-[90vh] overflow-y-auto"
+            initial={{ scale: 0.3, opacity: 0, y: 40 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: -20 }}
+            transition={springTransition}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => setStep("human")}
+                className="text-sm text-gray-400 hover:text-gray-200 cursor-pointer transition-colors"
+              >
+                &larr; Back
+              </button>
+              <div className="text-[10px] uppercase tracking-wider text-gray-500">Step 2 of 3</div>
+            </div>
+
+            <h2 className="text-xl font-bold text-white mb-1">
+              Hi {humanName || "there"} 👋
+            </h2>
+            <p className="text-sm text-gray-400 mb-5">
+              Pick a look. You can change it any time.
+            </p>
+
+            <div className="flex flex-col gap-5">
+              <AvatarPicker value={avatarUrl} onChange={setAvatarUrl} />
+              <AccentPicker value={accentId} onChange={setAccentId} />
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => finishOnboarding(profile)}
+                className="flex-1 py-3 rounded-full font-semibold text-sm bg-[#2a2a3e] hover:bg-[#3a3a4e] text-gray-300 transition-colors"
+              >
+                Skip &amp; enter
+              </button>
+              <button
+                onClick={() => setStep("about")}
+                className="flex-1 py-3 rounded-full font-semibold text-sm bg-sky-600 hover:bg-sky-700 text-white transition-colors"
+              >
+                Next: About you
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── About You step (profile + socials, optional) ────── */}
+        {step === "about" && (
+          <motion.div
+            key="about"
+            className="bg-[#1a1a2e] border border-emerald-400/30 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.12)] z-10 w-full max-w-lg mx-4 p-6 flex flex-col max-h-[90vh] overflow-y-auto"
+            initial={{ scale: 0.3, opacity: 0, y: 40 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: -20 }}
+            transition={springTransition}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => setStep("avatar")}
+                className="text-sm text-gray-400 hover:text-gray-200 cursor-pointer transition-colors"
+              >
+                &larr; Back
+              </button>
+              <div className="text-[10px] uppercase tracking-wider text-gray-500">Step 3 of 3 · all optional</div>
+            </div>
+
+            <h2 className="text-xl font-bold text-white mb-1">Tell the world a bit</h2>
+            <p className="text-sm text-gray-400 mb-5">
+              Other people see this when they tap your character. Skip any field.
+            </p>
+
+            <ProfileForm value={profile} onChange={setProfile} />
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => finishOnboarding({ pronouns: "", bio: "", homeCity: null, socials: {} })}
+                className="flex-1 py-3 rounded-full font-semibold text-sm bg-[#2a2a3e] hover:bg-[#3a3a4e] text-gray-300 transition-colors"
+              >
+                Skip &amp; enter
+              </button>
+              <button
+                onClick={() => finishOnboarding(profile)}
+                className="flex-1 py-3 rounded-full font-semibold text-sm bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+              >
+                Enter 3D World
+              </button>
             </div>
           </motion.div>
         )}

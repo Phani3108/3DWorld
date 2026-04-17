@@ -117,6 +117,7 @@ const CharacterList = React.memo(() => {
           <Suspense>
             <Avatar
               id={character.id}
+              userId={character.userId}
               gridPosition={character.position}
               hairColor={character.hairColor}
               topColor={character.topColor}

@@ -19,6 +19,8 @@ import { Minimap } from "./components/Minimap";
 import soundManager from "./audio/SoundManager";
 import AudioSettingsPanel from "./audio/AudioSettingsPanel";
 import { BulletinBoardPanel } from "./components/BulletinBoard";
+import ProfileCard from "./components/ProfileCard";
+import { updateProfile as apiUpdateProfile } from "./lib/api";
 
 class ErrorBoundary extends Component {
   state = { hasError: false };
@@ -168,11 +170,12 @@ function App() {
       {loaded && <Minimap />}
       {loaded && <AudioSettingsPanel />}
       {loaded && <BulletinBoardPanel />}
+      {loaded && <ProfileCard />}
       {loaded && showWelcome && (
         <>
           <BubblesBackground />
           <WelcomeModal
-            onChoice={(choice, name) => {
+            onChoice={(choice, name, extras = {}) => {
               localStorage.setItem("3dworld_role", choice);
               localStorage.setItem("3dworld_onboarded_v2", "1");
               const storedName = (localStorage.getItem("3dworld_username") || "").trim();
@@ -180,6 +183,15 @@ function App() {
               localStorage.setItem("3dworld_username", resolvedName);
               setUsername(resolvedName);
               setShowWelcome(false);
+
+              // Persist profile patch (avatar/accent/bio/pronouns/homeCity/socials).
+              // Fire-and-forget; UI does not block on the response.
+              const userId = localStorage.getItem("3dworld_user_id");
+              if (userId && extras && Object.keys(extras).length > 0) {
+                apiUpdateProfile(userId, extras).catch((err) => {
+                  console.warn("[profile] update failed:", err);
+                });
+              }
             }}
           />
         </>

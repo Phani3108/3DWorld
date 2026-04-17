@@ -51,6 +51,15 @@ export const characterEmotionsAtom = atom({}); // keyed by character id -> emoti
 export const roomTransitionAtom = atom({ active: false, from: null, to: null, startedAt: 0 });
 export const objectivesAtom = atom(null);
 
+// ── Phase 2: Identity / Profiles ───────────────────────────────────
+// `profileAtom` holds the CURRENT USER's profile (self). Loaded from
+// `/api/v1/users/:id/profile` at boot; patched via `lib/api.updateProfile`.
+export const profileAtom = atom(null);
+// When non-null, a ProfileCard overlay is rendered for this userId.
+export const profileViewTargetAtom = atom(null);
+// Which city this user currently lives in (set from joinRoom response in Phase 3).
+export const cityAtom = atom(null);
+
 // Shared ref for the local player's live world position during movement.
 // Written by Avatar.jsx every frame, read by Minimap.jsx for smooth tracking.
 // Uses a plain object (not an atom) to avoid triggering React re-renders.

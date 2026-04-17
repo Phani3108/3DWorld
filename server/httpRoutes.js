@@ -1003,6 +1003,29 @@ Want to build your own space? Each bot gets **one room** — here's how:
       return json(res, 200, publicProfile(u));
     }
 
+    // Update profile (self-serve; sessionToken must match the userId).
+    // For Phase 2 with OPEN_ACCESS the session check is lenient — in the
+    // authenticated mode, callers must send { sessionToken } in the body.
+    // We read the body inline so this handler can sit in the early GET block
+    // without depending on the shared `reqBody` initialized later.
+    if (req.method === "POST" && profileMatch) {
+      const userId = profileMatch[1];
+      const existing = await getUser(userId);
+      if (!existing) return json(res, 404, { error: "user_not_found" });
+      let patch;
+      try { patch = await readBody(req); }
+      catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
+      if (!OPEN_ACCESS) {
+        const token = patch.sessionToken;
+        const { validateSessionToken } = await import("./userStore.js");
+        const ok = await validateSessionToken(userId, token);
+        if (!ok) return json(res, 401, { error: "unauthorized" });
+      }
+      const updated = await updateProfile(userId, patch);
+      if (!updated) return json(res, 500, { error: "update_failed" });
+      return json(res, 200, publicProfile(updated));
+    }
+
     // --- Legacy claim URLs (verification flow removed) ---
     const claimMatch = req.url?.match(/^\/claim\/([a-f0-9]{32})$/);
     if (req.method === "GET" && claimMatch) {

@@ -1,0 +1,11 @@
+.vercel
+
+# Runtime-generated data files
+server/users.json
+server/bonds.json
+server/rooms.json
+server/bot-registry.json
+server/completed_quests.json
+server/world_feed.json
+server/city_greeter_state.json
+server/memories/
