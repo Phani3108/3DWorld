@@ -87,7 +87,7 @@ export const LibraryPanel = () => {
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 8 }}
           transition={{ type: "spring", stiffness: 300, damping: 28 }}
-          className="relative w-[620px] max-w-[calc(100vw-2rem)] max-h-[80vh] overflow-y-auto bg-[#1a1a2e] rounded-2xl shadow-2xl border border-sky-400/30"
+          className="relative w-full sm:w-[620px] max-w-[calc(100vw-2rem)] max-h-[80vh] overflow-y-auto bg-[#1a1a2e] rounded-t-2xl sm:rounded-2xl shadow-2xl border border-sky-400/30"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 bg-[#1a1a2e] border-b border-[#2a2a3e]">

@@ -29,6 +29,8 @@ import VenueInfoCard from "./components/VenueInfoCard";
 import LanguageBadge from "./components/LanguageBadge";
 import { HelpSheet } from "./components/HelpSheet";
 import { updateProfile as apiUpdateProfile } from "./lib/api";
+import MobileControls from "./components/MobileControls";
+import { isMobileAtom } from "./hooks/useMobile";
 
 class ErrorBoundary extends Component {
   state = { hasError: false };
@@ -103,6 +105,7 @@ function App() {
   const { progress } = useProgress();
   const [loaded, setLoaded] = useState(false);
   const [username, setUsername] = useAtom(usernameAtom);
+  const [isMobile] = useAtom(isMobileAtom);
   const [showWelcome, setShowWelcome] = useState(
     !localStorage.getItem("3dworld_onboarded_v2")
   );
@@ -155,7 +158,7 @@ function App() {
       <SocketManager />
       <Canvas
         shadows
-        dpr={[1, 2]}
+        dpr={isMobile ? [1, 1.5] : [1, 2]}
         frameloop={loaded && showWelcome ? "never" : "always"}
         camera={{
           position: [0, 8, 2],
@@ -187,6 +190,7 @@ function App() {
       {loaded && <VenueInfoCard />}
       {loaded && <LanguageBadge />}
       {loaded && <HelpSheet />}
+      {loaded && <MobileControls />}
       {loaded && showWelcome && (
         <>
           <BubblesBackground />

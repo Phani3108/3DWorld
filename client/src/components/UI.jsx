@@ -44,6 +44,7 @@ import BazaarPanel, { bazaarOpenAtom } from "./BazaarPanel";
 import LibraryPanel, { libraryOpenAtom } from "./LibraryPanel";
 import QuestsPanel, { questsOpenAtom } from "./QuestsPanel";
 import soundManager from "../audio/SoundManager";
+import { isMobileAtom } from "../hooks/useMobile";
 
 // Offscreen thumbnail renderer — renders each GLB to a data URL image
 const thumbnailCache = {};
@@ -1353,6 +1354,7 @@ const RoomSelectorModal = ({ onClose, currentRoomID, onSwitchRoom }) => {
 export const UI = () => {
   const [buildMode, setBuildMode] = useAtom(buildModeAtom);
   const [shopMode, setShopMode] = useAtom(shopModeAtom);
+  const [isMobile] = useAtom(isMobileAtom);
   const [draggedItem, setDraggedItem] = useAtom(draggedItemAtom);
   const [draggedItemRotation, setDraggedItemRotation] = useAtom(
     draggedItemRotationAtom
@@ -1366,6 +1368,7 @@ export const UI = () => {
   const [helpMode, setHelpMode] = useState(false);
   const [inviteMode, setInviteMode] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [tasksVisible, setTasksVisible] = useState(() => {
     try { return localStorage.getItem("3dworld_tasks_visible") === "true"; } catch { return false; }
   });
@@ -1760,10 +1763,10 @@ export const UI = () => {
             )}
             {/* BOTTOM NAV BAR */}
             {!buildMode && !shopMode && (
-              <div className="flex items-end justify-center gap-1 sm:gap-2 pointer-events-auto bg-white/95 backdrop-blur-sm rounded-2xl px-2 py-2 sm:px-4 sm:py-3 drop-shadow-lg border border-gray-200">
+              <div className="flex items-end justify-center gap-1 sm:gap-2 pointer-events-auto bg-white/95 backdrop-blur-sm rounded-2xl px-2 py-2 sm:px-4 sm:py-3 drop-shadow-lg border border-gray-200 max-w-[calc(100vw-1rem)] overflow-x-auto scrollbar-hide">
                 {/* Avatar */}
                 <button
-                  className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors group"
+                  className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors group shrink-0"
                   onClick={() => { soundManager.play("button_click"); setCharacterSelectorMode(true); }}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500 group-hover:text-gray-800 transition-colors">
@@ -1775,7 +1778,7 @@ export const UI = () => {
                 {/* Rooms */}
                 {roomID && (
                   <button
-                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-amber-50 transition-colors group"
+                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-amber-50 transition-colors group shrink-0"
                     onClick={() => { soundManager.play("button_click"); setRoomSelectorMode(true); }}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500 group-hover:text-amber-700 transition-colors">
@@ -1788,7 +1791,7 @@ export const UI = () => {
                 {/* Inbox */}
                 {roomID && (
                   <button
-                    className="relative flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-red-50 transition-colors group"
+                    className="relative flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-red-50 transition-colors group shrink-0"
                     onClick={() => {
                       soundManager.play("button_click");
                       if (dmInboxOpen || dmPanelTarget) {
@@ -1816,7 +1819,7 @@ export const UI = () => {
                 {/* Wallet */}
                 {roomID && (
                   <button
-                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-amber-50 transition-colors group"
+                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-amber-50 transition-colors group shrink-0"
                     onClick={() => {
                       soundManager.play("button_click");
                       if (walletOpen) {
@@ -1838,7 +1841,7 @@ export const UI = () => {
                 {/* World Map (Phase 3) */}
                 {roomID && (
                   <button
-                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-sky-50 transition-colors group"
+                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-sky-50 transition-colors group shrink-0"
                     onClick={() => { soundManager.play("button_click"); setWorldMapOpen((v) => !v); }}
                     title="Travel to another city"
                   >
@@ -1852,7 +1855,7 @@ export const UI = () => {
                 {/* Food (Phase 4) */}
                 {roomID && (
                   <button
-                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-amber-50 transition-colors group"
+                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-amber-50 transition-colors group shrink-0"
                     onClick={() => { soundManager.play("button_click"); setFoodPanelOpen((v) => !v); }}
                     title="Eat local food"
                   >
@@ -1861,10 +1864,10 @@ export const UI = () => {
                   </button>
                 )}
 
-                {/* Phase 7G — Bazaar (coins-only marketplace) */}
+                {/* Phase 7G — Bazaar (coins-only marketplace) — hidden on mobile, in overflow */}
                 {roomID && (
                   <button
-                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-amber-50 transition-colors group"
+                    className="hidden sm:flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-amber-50 transition-colors group shrink-0"
                     onClick={() => {
                       soundManager.play("button_click");
                       setBazaarOpen((v) => !v);
@@ -1876,10 +1879,10 @@ export const UI = () => {
                   </button>
                 )}
 
-                {/* Phase 7J — Library (your learned facts + citations) */}
+                {/* Phase 7J — Library — hidden on mobile, in overflow */}
                 {roomID && (
                   <button
-                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-sky-50 transition-colors group"
+                    className="hidden sm:flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-sky-50 transition-colors group shrink-0"
                     onClick={() => {
                       soundManager.play("button_click");
                       setLibraryOpen((v) => !v);
@@ -1891,10 +1894,10 @@ export const UI = () => {
                   </button>
                 )}
 
-                {/* Phase 9B — Quests launcher */}
+                {/* Phase 9B — Quests launcher — hidden on mobile, in overflow */}
                 {roomID && (
                   <button
-                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-emerald-50 transition-colors group"
+                    className="hidden sm:flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-emerald-50 transition-colors group shrink-0"
                     onClick={() => {
                       soundManager.play("button_click");
                       setQuestsOpen((v) => !v);
@@ -1906,10 +1909,10 @@ export const UI = () => {
                   </button>
                 )}
 
-                {/* Overview toggle (Phase 7C.2) — bird's-eye of the whole city */}
+                {/* Overview toggle (Phase 7C.2) — hidden on mobile, in overflow */}
                 {roomID && (
                   <button
-                    className={`flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer transition-colors group ${
+                    className={`hidden sm:flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer transition-colors group shrink-0 ${
                       cameraOverview ? "bg-sky-100 text-sky-700" : "hover:bg-slate-100"
                     }`}
                     onClick={() => {
@@ -1927,9 +1930,9 @@ export const UI = () => {
                   </button>
                 )}
 
-                {/* Vehicle picker (Phase 7C.4) */}
+                {/* Vehicle picker (Phase 7C.4) — hidden on mobile, in overflow */}
                 {roomID && (
-                  <div className="relative">
+                  <div className="hidden sm:block relative shrink-0">
                     <button
                       className={`flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer transition-colors group ${
                         vehiclePickerOpen ? "bg-amber-100 text-amber-700" : "hover:bg-amber-50"
@@ -1946,13 +1949,13 @@ export const UI = () => {
                   </div>
                 )}
 
-                {/* Screenshot (Phase 5) */}
-                {roomID && <ScreenshotButton />}
+                {/* Screenshot (Phase 5) — hidden on mobile */}
+                {roomID && <div className="hidden sm:block shrink-0"><ScreenshotButton /></div>}
 
-                {/* Story composer (Phase 5) */}
+                {/* Story composer (Phase 5) — hidden on mobile, in overflow */}
                 {roomID && (
                   <button
-                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-indigo-50 transition-colors group"
+                    className="hidden sm:flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-indigo-50 transition-colors group shrink-0"
                     onClick={() => { soundManager.play("button_click"); setStoryComposerOpen(true); }}
                     title="Post a story"
                   >
@@ -1961,10 +1964,10 @@ export const UI = () => {
                   </button>
                 )}
 
-                {/* Build */}
+                {/* Build — hidden on mobile, in overflow */}
                 {roomID && (
                   <button
-                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-green-50 transition-colors group"
+                    className="hidden sm:flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-green-50 transition-colors group shrink-0"
                     onClick={() => { soundManager.play("build_mode_enter"); setBuildMode(true); }}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6 text-green-500 group-hover:text-green-700 transition-colors">
@@ -1977,8 +1980,63 @@ export const UI = () => {
                 {/* Divider */}
                 <div className="w-px h-8 bg-gray-200 mx-1 hidden sm:block" />
 
-                {/* More Menu */}
-                <div className="relative">
+                {/* Mobile overflow — shows hidden buttons as a grid on small screens */}
+                {roomID && (
+                  <div className="relative sm:hidden shrink-0">
+                    <button
+                      className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl cursor-pointer transition-colors group ${mobileMoreOpen ? "bg-slate-100" : "hover:bg-slate-50"}`}
+                      onClick={() => { soundManager.play("button_click"); setMobileMoreOpen(!mobileMoreOpen); }}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-slate-500">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                      </svg>
+                      <span className="text-[10px] text-slate-500 font-medium">More</span>
+                    </button>
+                    <AnimatePresence>
+                      {mobileMoreOpen && (
+                        <>
+                          <div className="fixed inset-0 z-[15]" onClick={() => setMobileMoreOpen(false)} />
+                          <motion.div
+                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute bottom-full mb-2 right-0 w-56 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-[20] p-2"
+                          >
+                            <div className="grid grid-cols-4 gap-1">
+                              {[
+                                { emoji: "🛍️", label: "Bazaar", action: () => setBazaarOpen((v) => !v) },
+                                { emoji: "📚", label: "Library", action: () => setLibraryOpen((v) => !v) },
+                                { emoji: "🎯", label: "Quests", action: () => setQuestsOpen((v) => !v) },
+                                { emoji: cameraOverview ? "📍" : "🗺️", label: cameraOverview ? "Close" : "Overview", action: () => setCameraOverview((v) => !v) },
+                                { emoji: "🛺", label: "Ride", action: () => setVehiclePickerOpen((v) => !v) },
+                                { emoji: "📌", label: "Story", action: () => setStoryComposerOpen(true) },
+                                { emoji: "🏠", label: "Build", action: () => { soundManager.play("build_mode_enter"); setBuildMode(true); } },
+                                { emoji: "🤝", label: "Invite", action: () => setInviteMode(true) },
+                                { emoji: "💃", label: "Dance", action: () => socket.emit("dance") },
+                                { emoji: "📋", label: "Tasks", action: () => { setTasksVisible((v) => { const nv = !v; try { localStorage.setItem("3dworld_tasks_visible", String(nv)); } catch {} return nv; }); } },
+                                { emoji: "🤖", label: "Bots", action: () => setBotConnectMode(true) },
+                                { emoji: "❓", label: "Help", action: () => setHelpMode(true) },
+                              ].map((item) => (
+                                <button
+                                  key={item.label}
+                                  className="flex flex-col items-center gap-0.5 p-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                                  onClick={() => { soundManager.play("button_click"); item.action(); setMobileMoreOpen(false); }}
+                                >
+                                  <span className="text-lg leading-none">{item.emoji}</span>
+                                  <span className="text-[9px] text-gray-500 font-medium">{item.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+
+                {/* More Menu — desktop */}
+                <div className="relative hidden sm:block shrink-0">
                   <button
                     className={`flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer transition-colors group ${moreMenuOpen ? "bg-slate-100" : "hover:bg-slate-50"}`}
                     onClick={() => { soundManager.play("button_click"); setMoreMenuOpen(!moreMenuOpen); }}

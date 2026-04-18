@@ -7,6 +7,7 @@ import { Room } from "./Room";
 import { mapAtom, roomIDAtom, userAtom, cameraOverviewAtom } from "./SocketManager";
 import { buildModeAtom, shopModeAtom } from "./UI";
 import { followedCharacterAtom } from "./Avatar";
+import { isMobileAtom } from "../hooks/useMobile";
 
 const MIN_ZOOM = 6;   // a little closer than before for portraits / hotspot reads
 const MAX_ZOOM = 90;  // raised for wider city overview via scroll wheel
@@ -19,6 +20,7 @@ const DEFAULT_ANGLE = Math.PI / 4; // 45 degrees — isometric default
 export const Experience = ({ loaded }) => {
   const [buildMode] = useAtom(buildModeAtom);
   const [shopMode] = useAtom(shopModeAtom);
+  const [isMobile] = useAtom(isMobileAtom);
 
   const controls = useRef();
   const zoomLevel = useRef(DEFAULT_ZOOM);
@@ -38,6 +40,11 @@ export const Experience = ({ loaded }) => {
   const buildCamTarget = useRef({ x: 0, z: 0 });
   const buildZoom = useRef(30);
   const buildDragging = useRef(false);
+
+  // Touch state refs
+  const touchStartRef = useRef(null); // { x, y, time } for single-finger
+  const lastTouchRef = useRef(null);  // { x, y } for tracking deltas
+  const pinchDistRef = useRef(null);  // distance between two fingers
 
   // Clear cached character ref when user changes
   useEffect(() => {
@@ -108,12 +115,93 @@ export const Experience = ({ loaded }) => {
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
 
+    // --- Touch event handlers (mobile) ---
+    const handleTouchStart = (e) => {
+      if (shopMode || !roomID) return;
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        touchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
+        lastTouchRef.current = { x: t.clientX, y: t.clientY };
+        pinchDistRef.current = null;
+      } else if (e.touches.length === 2) {
+        // Start pinch-to-zoom
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        pinchDistRef.current = Math.hypot(dx, dy);
+        touchStartRef.current = null; // cancel single-finger tracking
+        lastTouchRef.current = null;
+      }
+    };
+
+    const handleTouchMove = (e) => {
+      if (shopMode || !roomID) return;
+      e.preventDefault(); // prevent browser scroll/zoom
+
+      if (e.touches.length === 2 && pinchDistRef.current !== null) {
+        // Pinch-to-zoom
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const newDist = Math.hypot(dx, dy);
+        const delta = (pinchDistRef.current - newDist) * 0.15;
+        if (buildMode) {
+          buildZoom.current = Math.max(10, Math.min(60, buildZoom.current + delta));
+        } else {
+          zoomLevel.current = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel.current + delta));
+        }
+        pinchDistRef.current = newDist;
+        return;
+      }
+
+      if (e.touches.length === 1 && lastTouchRef.current) {
+        const t = e.touches[0];
+        const deltaX = t.clientX - lastTouchRef.current.x;
+        const deltaY = t.clientY - lastTouchRef.current.y;
+
+        if (buildMode) {
+          const panSpeed = buildZoom.current * 0.004;
+          buildCamTarget.current.x -= deltaX * panSpeed;
+          buildCamTarget.current.z -= deltaY * panSpeed;
+        } else {
+          // Single-finger drag → rotate camera
+          cameraAngle.current -= deltaX * ROTATE_SPEED * 1.5;
+        }
+        lastTouchRef.current = { x: t.clientX, y: t.clientY };
+      }
+    };
+
+    const handleTouchEnd = () => {
+      touchStartRef.current = null;
+      lastTouchRef.current = null;
+      pinchDistRef.current = null;
+    };
+
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: false });
+    canvas.addEventListener("touchmove", handleTouchMove, { passive: false });
+    canvas.addEventListener("touchend", handleTouchEnd);
+    canvas.addEventListener("touchcancel", handleTouchEnd);
+
+    // Mobile zoom buttons dispatch this custom event
+    const handleMobileZoom = (e) => {
+      const delta = e.detail?.delta || 0;
+      if (buildMode) {
+        buildZoom.current = Math.max(10, Math.min(60, buildZoom.current + delta));
+      } else {
+        zoomLevel.current = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel.current + delta));
+      }
+    };
+    window.addEventListener("mobile-zoom", handleMobileZoom);
+
     return () => {
       canvas.removeEventListener("wheel", handleWheel);
       canvas.removeEventListener("mousedown", handleMouseDown);
       canvas.removeEventListener("mousemove", handleMouseMove);
       canvas.removeEventListener("mouseup", handleMouseUp);
       canvas.removeEventListener("contextmenu", handleContextMenu);
+      canvas.removeEventListener("touchstart", handleTouchStart);
+      canvas.removeEventListener("touchmove", handleTouchMove);
+      canvas.removeEventListener("touchend", handleTouchEnd);
+      canvas.removeEventListener("touchcancel", handleTouchEnd);
+      window.removeEventListener("mobile-zoom", handleMobileZoom);
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
@@ -278,7 +366,7 @@ export const Experience = ({ loaded }) => {
         position={[15, 20, -15]}
         castShadow
         intensity={0.35}
-        shadow-mapSize={[1024, 1024]}
+        shadow-mapSize={isMobile ? [512, 512] : [1024, 1024]}
       >
         <orthographicCamera
           attach={"shadow-camera"}

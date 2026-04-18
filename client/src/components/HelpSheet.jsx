@@ -33,7 +33,7 @@ export const HelpSheet = () => {
       <button
         onClick={() => setOpen(true)}
         aria-label="Show help (?)"
-        className="fixed bottom-4 left-4 z-[105] w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105"
+        className="fixed bottom-4 left-4 z-[105] w-10 h-10 rounded-full shadow-lg hidden sm:flex items-center justify-center transition-all hover:scale-105"
         style={{
           background: "rgba(15,23,42,0.85)",
           border: "1px solid rgba(148,163,184,0.4)",
@@ -61,7 +61,7 @@ export const HelpSheet = () => {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 10 }}
               transition={{ type: "spring", stiffness: 300, damping: 28 }}
-              className="relative w-[520px] max-w-[calc(100vw-2rem)] max-h-[80vh] overflow-y-auto bg-[#1a1a2e] rounded-2xl shadow-2xl border border-amber-400/30"
+              className="relative w-full sm:w-[520px] max-w-[calc(100vw-2rem)] max-h-[80vh] overflow-y-auto bg-[#1a1a2e] rounded-2xl shadow-2xl border border-amber-400/30"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 bg-[#1a1a2e] border-b border-[#2a2a3e]">
@@ -83,7 +83,15 @@ export const HelpSheet = () => {
                   <Row k="🛺 top bar" v="switch vehicle (walk → cycle → auto → bike → car)" />
                 </Section>
 
-                <Section title="👥 Meet characters">
+                <Section title="� Mobile controls">
+                  <Row k="tap ground" v="walk there" />
+                  <Row k="drag one finger" v="rotate camera" />
+                  <Row k="pinch two fingers" v="zoom in / out" />
+                  <Row k="joystick (bottom-left)" v="continuous movement" />
+                  <Row k="+/− buttons" v="zoom in / out" />
+                </Section>
+
+                <Section title="�👥 Meet characters">
                   <Row k="hover a person" v="wave · follow · profile · task · teach · invite" />
                   <Row k="emoji chips above head" v="their expertise / persona tags" />
                   <Row k="click name tag" v="open character menu (DM, bond, etc.)" />

@@ -2,6 +2,7 @@ import { useAtom } from "jotai";
 import { useRef, useEffect, useCallback, useState } from "react";
 import { charactersAtom, mapAtom, userAtom, socket, selfLivePosition, venuesInCityAtom, currentVenueAtom } from "./SocketManager";
 import { buildModeAtom, shopModeAtom } from "./UI";
+import { isMobileAtom } from "../hooks/useMobile";
 
 // Building footprints for plaza rooms (duplicated from server/shared/roomConstants.js)
 const getBuildingFootprints = (sz) => [
@@ -17,13 +18,16 @@ const getBuildingFootprints = (sz) => [
   { x: sz[0] - 5, z: sz[1] - 5, w: 5, d: 5 },
 ];
 
-const MINIMAP_WIDTH = 200;
-const MINIMAP_HEIGHT = 150;
+const MINIMAP_WIDTH_DESKTOP = 200;
+const MINIMAP_HEIGHT_DESKTOP = 150;
+const MINIMAP_WIDTH_MOBILE = 140;
+const MINIMAP_HEIGHT_MOBILE = 105;
 const PADDING = 8;
 const DOT_RADIUS_SELF = 4;
 const DOT_RADIUS_OTHER = 2.5;
 const DOT_RADIUS_BOT = 2;
-const HIT_RADIUS = 8; // px radius for hover hit-testing
+const HIT_RADIUS_DESKTOP = 8;
+const HIT_RADIUS_MOBILE = 16; // larger for touch
 const DEST_MARKER_SIZE = 4; // half-size of the destination X marker
 
 export const Minimap = () => {
@@ -35,8 +39,17 @@ export const Minimap = () => {
   const [shopMode] = useAtom(shopModeAtom);
   const [venuesInCity] = useAtom(venuesInCityAtom);
   const [currentVenue] = useAtom(currentVenueAtom);
-  const [collapsed, setCollapsed] = useState(false);
+  const [isMobile] = useAtom(isMobileAtom);
+  const [collapsed, setCollapsed] = useState(() => {
+    // Start collapsed on mobile
+    if (typeof window !== "undefined" && (window.matchMedia("(pointer: coarse)").matches || "ontouchstart" in window)) return true;
+    return false;
+  });
   const [tooltip, setTooltip] = useState(null); // { name, isBot, x, y }
+
+  const MINIMAP_WIDTH = isMobile ? MINIMAP_WIDTH_MOBILE : MINIMAP_WIDTH_DESKTOP;
+  const MINIMAP_HEIGHT = isMobile ? MINIMAP_HEIGHT_MOBILE : MINIMAP_HEIGHT_DESKTOP;
+  const HIT_RADIUS = isMobile ? HIT_RADIUS_MOBILE : HIT_RADIUS_DESKTOP;
 
   // Destination marker: grid coords of where the player clicked to move
   const destinationRef = useRef(null); // [gridX, gridY] or null

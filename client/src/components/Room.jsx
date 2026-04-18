@@ -6,7 +6,7 @@ import {
 
 import { useThree } from "@react-three/fiber";
 import { atom, useAtom } from "jotai";
-import React, { Suspense, useEffect, useMemo, useState, Component } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState, Component } from "react";
 import { useGrid } from "../hooks/useGrid";
 import { Avatar } from "./Avatar";
 import { TownHall } from "./TownHall";
@@ -176,6 +176,10 @@ export const Room = () => {
   const isCity = !!map?.isCity;
   const cityGround = map?.theme?.palette?.ground || null;
 
+  // Track pointer position to distinguish taps from drags (mobile camera rotation)
+  const pointerDownPos = useRef(null);
+  const TAP_THRESHOLD = 12; // px — movement below this is treated as a tap
+
   useEffect(() => {
     setItems(map.items);
   }, [map]);
@@ -183,6 +187,14 @@ export const Room = () => {
   const onPlaneClicked = (e) => {
     // Only respond to left-click (button 0); ignore right-click used for camera rotation
     if (e.nativeEvent?.button !== undefined && e.nativeEvent.button !== 0) return;
+
+    // On touch/pointer devices, ignore if the pointer moved significantly (was a drag, not a tap)
+    if (pointerDownPos.current) {
+      const dx = (e.nativeEvent?.clientX || 0) - pointerDownPos.current.x;
+      const dy = (e.nativeEvent?.clientY || 0) - pointerDownPos.current.y;
+      pointerDownPos.current = null;
+      if (Math.hypot(dx, dy) > TAP_THRESHOLD) return;
+    }
     if (!buildMode) {
       const character = scene.getObjectByName(`character-${user}`);
       if (!character) {
@@ -208,6 +220,21 @@ export const Room = () => {
         setDraggedItem(null);
       }
     }
+  };
+
+  // Wrapper: record pointer start position, then call onPlaneClicked on pointerUp (which checks drag distance)
+  const onPlanePointerDown = (e) => {
+    pointerDownPos.current = {
+      x: e.nativeEvent?.clientX || 0,
+      y: e.nativeEvent?.clientY || 0,
+    };
+    // In build mode, fire immediately (drag-to-place items)
+    if (buildMode) onPlaneClicked(e);
+  };
+
+  const onPlanePointerUp = (e) => {
+    // In non-build mode, fire on pointerUp so we can detect drag vs tap
+    if (!buildMode) onPlaneClicked(e);
   };
 
   const [draggedItem, setDraggedItem] = useAtom(draggedItemAtom);
@@ -370,7 +397,8 @@ export const Room = () => {
         <mesh
           rotation-x={-Math.PI / 2}
           position-y={-0.002}
-          onPointerDown={onPlaneClicked}
+          onPointerDown={onPlanePointerDown}
+          onPointerUp={onPlanePointerUp}
           onPointerEnter={() => setOnFloor(true)}
           onPointerLeave={() => setOnFloor(false)}
           onPointerMove={(e) => {
@@ -406,7 +434,8 @@ export const Room = () => {
             position-x={map.size[0] / 2}
             position-z={map.size[1] / 2}
             receiveShadow
-            onPointerDown={onPlaneClicked}
+            onPointerDown={onPlanePointerDown}
+            onPointerUp={onPlanePointerUp}
             onPointerEnter={() => setOnFloor(true)}
             onPointerLeave={() => setOnFloor(false)}
           >
@@ -560,7 +589,8 @@ export const Room = () => {
             position-x={map.size[0] / 2}
             position-z={map.size[1] / 2}
             receiveShadow
-            onPointerDown={onPlaneClicked}
+            onPointerDown={onPlanePointerDown}
+            onPointerUp={onPlanePointerUp}
             onPointerEnter={() => setOnFloor(true)}
             onPointerLeave={() => setOnFloor(false)}
           >

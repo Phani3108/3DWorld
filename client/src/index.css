@@ -27,6 +27,20 @@ canvas {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Hide scrollbar for mobile nav bar */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe area padding for notch/island devices */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 
 /* ===== Loader Screen - Ocean/Crab Theme ===== */
 
