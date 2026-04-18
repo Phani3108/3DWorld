@@ -64,7 +64,7 @@ const CreditBadge = ({ isMobile }) => {
   const [open, setOpen] = useState(false);
   if (isMobile) {
     return (
-      <div className="fixed bottom-[120px] left-3 z-[11] pointer-events-auto">
+      <div className="fixed bottom-[76px] left-2 z-[11] pointer-events-auto">
         {open ? (
           <div
             className="bg-black/50 backdrop-blur-sm rounded px-2 py-0.5 flex items-center gap-1.5"
@@ -93,7 +93,7 @@ const CreditBadge = ({ isMobile }) => {
     );
   }
   return (
-    <div className="fixed bottom-[108px] left-5 z-[11] pointer-events-auto">
+    <div className="fixed bottom-[76px] left-5 z-[11] pointer-events-auto">
       <a
         href="https://linkedin.com/in/Phani-marupaka"
         target="_blank"
