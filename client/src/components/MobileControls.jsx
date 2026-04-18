@@ -49,8 +49,8 @@ export const MobileControls = () => {
     const manager = nipplejs.create({
       zone: joystickZoneRef.current,
       mode: "static",
-      position: { left: "60px", bottom: "80px" },
-      size: 110,
+      position: { left: "60px", bottom: "60px" },
+      size: 100,
       color: "rgba(255,255,255,0.35)",
       fadeTime: 0,
     });
@@ -90,20 +90,20 @@ export const MobileControls = () => {
 
   return (
     <>
-      {/* Joystick zone — bottom-left */}
+      {/* Joystick zone — bottom-left, above nav bar */}
       <div
         ref={joystickZoneRef}
-        className="fixed bottom-0 left-0 z-[25] pointer-events-auto"
+        className="fixed bottom-20 left-0 z-[12] pointer-events-auto"
         style={{
-          width: 180,
-          height: 180,
+          width: 150,
+          height: 150,
           touchAction: "none",
         }}
       />
 
       {/* Zoom buttons — bottom-right */}
       {!buildMode && !shopMode && (
-        <div className="fixed bottom-24 right-3 z-[25] flex flex-col gap-2 pointer-events-auto">
+        <div className="fixed bottom-24 right-3 z-[12] flex flex-col gap-2 pointer-events-auto">
           <button
             className="w-11 h-11 rounded-full bg-white/80 backdrop-blur-sm border border-gray-200 shadow-md flex items-center justify-center text-xl font-bold text-gray-600 active:bg-gray-100"
             style={{ touchAction: "none" }}

@@ -273,7 +273,15 @@ export const Avatar = memo(function Avatar({
   }, [gridPosition]);
 
   const group = useRef();
-  const { scene } = useGLTF(avatarUrl);
+
+  // Parse variant from avatar URL (e.g. ?variant=elephant) and strip for model loading
+  const avatarVariant = useMemo(() => {
+    const match = avatarUrl.match(/[?&]variant=(\w+)/);
+    return match ? match[1] : null;
+  }, [avatarUrl]);
+  const modelUrl = useMemo(() => avatarUrl.split("?")[0], [avatarUrl]);
+
+  const { scene } = useGLTF(modelUrl);
   // Skinned meshes cannot be re-used in threejs without cloning them
   const clone = useMemo(() => SkeletonUtils.clone(scene), [scene]);
   // Task 7: Share GPU geometry buffers — only 4 unique avatar URLs exist
@@ -290,13 +298,32 @@ export const Avatar = memo(function Avatar({
       }
     });
   }, [clone, scene]);
+
+  // Apply variant color tint to cloned model
+  const VARIANT_COLORS = useMemo(() => ({
+    elephant: 0x8B8B8B, // grey
+    penguin:  0x1a1a2e, // dark blue-black
+    tiger:    0xE87511, // orange
+    monkey:   0x8B5A2B, // brown
+  }), []);
+  useMemo(() => {
+    if (!avatarVariant || !VARIANT_COLORS[avatarVariant]) return;
+    const tintColor = new THREE.Color(VARIANT_COLORS[avatarVariant]);
+    clone.traverse((child) => {
+      if (child.isMesh) {
+        child.material = child.material.clone();
+        child.material.color.multiply(tintColor);
+      }
+    });
+  }, [clone, avatarVariant, VARIANT_COLORS]);
+
   // useGraph creates two flat object collections for nodes and materials
   const { nodes } = useGraph(clone);
 
   // Detect non-humanoid model type for procedural animation
-  const modelConfig = useMemo(() => getModelConfig(avatarUrl), [avatarUrl]);
+  const modelConfig = useMemo(() => getModelConfig(modelUrl), [modelUrl]);
   const isNonHumanoid = !!modelConfig;
-  const isNubcat = useMemo(() => avatarUrl.includes("sillyNubCat"), [avatarUrl]);
+  const isNubcat = useMemo(() => modelUrl.includes("sillyNubCat"), [modelUrl]);
   const proceduralBonesRef = useRef(null);
   const restPosesRef = useRef(null);
   const proceduralTimeRef = useRef(0);
@@ -1549,6 +1576,18 @@ export const renderAvatarPortrait = (avatarUrl, callback) => {
     return;
   }
 
+  // Parse variant and strip query params for model loading
+  const variantMatch = avatarUrl.match(/[?&]variant=(\w+)/);
+  const variant = variantMatch ? variantMatch[1] : null;
+  const loadUrl = avatarUrl.split("?")[0];
+
+  const VARIANT_COLORS = {
+    elephant: 0x8B8B8B,
+    penguin:  0x1a1a2e,
+    tiger:    0xE87511,
+    monkey:   0x8B5A2B,
+  };
+
   const size = 256;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setSize(size, size);
@@ -1571,12 +1610,24 @@ export const renderAvatarPortrait = (avatarUrl, callback) => {
 
   const loader = new GLTFLoader();
   loader.load(
-    avatarUrl,
+    loadUrl,
     (gltf) => {
       const model = gltf.scene;
+
+      // Apply variant color tint
+      if (variant && VARIANT_COLORS[variant]) {
+        const tintColor = new THREE.Color(VARIANT_COLORS[variant]);
+        model.traverse((child) => {
+          if (child.isMesh) {
+            child.material = child.material.clone();
+            child.material.color.multiply(tintColor);
+          }
+        });
+      }
+
       scene.add(model);
 
-      const modelConfig = getModelConfig(avatarUrl);
+      const modelConfig = getModelConfig(loadUrl);
 
       // Non-humanoid models keep default orientation (face is toward +Z)
 

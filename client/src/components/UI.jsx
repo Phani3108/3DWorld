@@ -183,12 +183,24 @@ const ShopPanel = ({ itemsCatalog, onClose, onSelect }) => {
 };
 
 const AVATAR_URLS = [
+  "/models/sillyNubCat.glb",
+  "/models/sillyNubCat.glb?variant=elephant",
+  "/models/sillyNubCat.glb?variant=penguin",
+  "/models/sillyNubCat.glb?variant=tiger",
+  "/models/sillyNubCat.glb?variant=monkey",
   "https://models.readyplayer.me/64f0265b1db75f90dcfd9e2c.glb",
   "https://models.readyplayer.me/663833cf6c79010563b91e1b.glb",
   "https://models.readyplayer.me/64bfa15f0e72c63d7c3934a6.glb",
   "https://models.readyplayer.me/64a3f54c1d64e9f3dbc832ac.glb",
-  "/models/sillyNubCat.glb",
 ];
+
+const AVATAR_LABELS = {
+  "/models/sillyNubCat.glb": { label: "Cat", emoji: "🐱" },
+  "/models/sillyNubCat.glb?variant=elephant": { label: "Elephant", emoji: "🐘" },
+  "/models/sillyNubCat.glb?variant=penguin": { label: "Penguin", emoji: "🐧" },
+  "/models/sillyNubCat.glb?variant=tiger": { label: "Tiger", emoji: "🐯" },
+  "/models/sillyNubCat.glb?variant=monkey": { label: "Monkey", emoji: "🐵" },
+};
 
 // Helper to get a 2D render thumbnail from a Ready Player Me avatar URL
 const getAvatarThumbnail = (glbUrl) => {
@@ -245,13 +257,16 @@ const CharacterSelectorModal = ({ onClose, currentAvatarUrl, onSelectAvatar, onC
         <div className="p-5">
           <div className="grid grid-cols-3 gap-3">
             {AVATAR_URLS.map((url, idx) => {
-              const isActive = currentAvatarUrl?.split("?")[0] === url.split("?")[0];
+              const baseUrl = url.split("?")[0];
+              const isActive = currentAvatarUrl?.split("?")[0] === baseUrl && (currentAvatarUrl === url || (!currentAvatarUrl.includes("variant=") && !url.includes("variant=")));
               const isLocalModel = url.startsWith("/");
+              const animalInfo = AVATAR_LABELS[url];
               const thumbUrl = isLocalModel ? null : getAvatarThumbnail(url);
-              const label = isLocalModel ? "Nub Cat" : `Character ${idx + 1}`;
+              const label = animalInfo ? animalInfo.label : `Character ${idx + 1}`;
+              const isVariant = url.includes("variant=");
               return (
                 <button
-                  key={idx}
+                  key={url}
                   onClick={() => { onSelectAvatar(url); onClose(); }}
                   className={`relative rounded-xl overflow-hidden aspect-square border-2 transition-all hover:scale-105 ${
                     isActive
@@ -260,8 +275,13 @@ const CharacterSelectorModal = ({ onClose, currentAvatarUrl, onSelectAvatar, onC
                   }`}
                 >
                   <div className="w-full h-full bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
-                    {isLocalModel ? (
-                      localThumbs[url] ? (
+                    {animalInfo ? (
+                      isVariant ? (
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          <span className="text-4xl">{animalInfo.emoji}</span>
+                          <span className="text-[10px] font-semibold text-gray-600">{label}</span>
+                        </div>
+                      ) : localThumbs[url] ? (
                         <img
                           src={localThumbs[url]}
                           alt={label}
@@ -269,7 +289,7 @@ const CharacterSelectorModal = ({ onClose, currentAvatarUrl, onSelectAvatar, onC
                         />
                       ) : (
                         <div className="flex flex-col items-center justify-center gap-1">
-                          <div className="w-6 h-6 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                          <span className="text-4xl">{animalInfo.emoji}</span>
                           <span className="text-[10px] font-semibold text-gray-500">{label}</span>
                         </div>
                       )
@@ -1995,13 +2015,13 @@ export const UI = () => {
                     <AnimatePresence>
                       {mobileMoreOpen && (
                         <>
-                          <div className="fixed inset-0 z-[15]" onClick={() => setMobileMoreOpen(false)} />
+                          <div className="fixed inset-0 z-[50]" onClick={() => setMobileMoreOpen(false)} />
                           <motion.div
                             initial={{ opacity: 0, y: 10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10, scale: 0.95 }}
                             transition={{ duration: 0.15 }}
-                            className="absolute bottom-full mb-2 right-0 w-56 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-[20] p-2"
+                            className="fixed bottom-20 right-2 left-2 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-[51] p-2"
                           >
                             <div className="grid grid-cols-4 gap-1">
                               {[

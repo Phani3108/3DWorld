@@ -3,6 +3,7 @@ import { useAtom } from "jotai";
 import { motion, AnimatePresence } from "framer-motion";
 import { masterVolumeAtom, musicVolumeAtom, sfxVolumeAtom, uiVolumeAtom, mutedAtom } from "./atoms";
 import soundManager from "./SoundManager";
+import { isMobileAtom } from "../hooks/useMobile";
 
 const VolumeSlider = ({ label, value, onChange }) => (
   <div className="flex items-center gap-2">
@@ -21,6 +22,7 @@ const VolumeSlider = ({ label, value, onChange }) => (
 );
 
 const AudioSettingsPanel = () => {
+  const [isMobile] = useAtom(isMobileAtom);
   const [open, setOpen] = useState(false);
   const [master, setMaster] = useAtom(masterVolumeAtom);
   const [music, setMusic] = useAtom(musicVolumeAtom);
@@ -51,7 +53,7 @@ const AudioSettingsPanel = () => {
   }, [muted]);
 
   return (
-    <div className="fixed bottom-3 left-3 z-[15]">
+    <div className={isMobile ? "fixed top-2 left-3 z-[15]" : "fixed bottom-3 left-3 z-[15]"}>
       {/* Speaker icon button */}
       <button
         onClick={() => setOpen((p) => !p)}
@@ -77,7 +79,7 @@ const AudioSettingsPanel = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute bottom-12 left-0 bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-gray-200 p-3 w-60"
+            className={`absolute ${isMobile ? 'top-12 left-0' : 'bottom-12 left-0'} bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-gray-200 p-3 w-60`}
           >
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-bold text-gray-700">Audio</p>
