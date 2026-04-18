@@ -191,6 +191,18 @@ function App() {
       {loaded && <LanguageBadge />}
       {loaded && <HelpSheet />}
       {loaded && <MobileControls />}
+      {loaded && (
+        <div className="fixed bottom-1 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
+          <a
+            href="https://linkedin.com/in/Phani-marupaka"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-white/40 hover:text-white/70 transition-colors"
+          >
+            Created &amp; Developed by Phani Marupaka
+          </a>
+        </div>
+      )}
       {loaded && showWelcome && (
         <>
           <BubblesBackground />
