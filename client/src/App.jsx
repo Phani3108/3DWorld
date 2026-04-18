@@ -60,6 +60,52 @@ class ErrorBoundary extends Component {
   }
 }
 
+const CreditBadge = ({ isMobile }) => {
+  const [open, setOpen] = useState(false);
+  if (isMobile) {
+    return (
+      <div className="fixed bottom-2 left-2 z-10 pointer-events-auto">
+        {open ? (
+          <div
+            className="bg-black/60 backdrop-blur-sm rounded px-2 py-1 flex items-center gap-1.5"
+            onClick={() => setOpen(false)}
+          >
+            <a
+              href="https://linkedin.com/in/Phani-marupaka"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[8px] text-white/60 hover:text-white/90 transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Created &amp; Developed by Phani Marupaka
+            </a>
+          </div>
+        ) : (
+          <button
+            onClick={() => setOpen(true)}
+            className="text-[10px] text-white/30 hover:text-white/60 transition-colors bg-black/40 rounded-full w-5 h-5 flex items-center justify-center"
+            title="Credits"
+          >
+            CC
+          </button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="fixed bottom-1 left-1 z-10 pointer-events-auto">
+      <a
+        href="https://linkedin.com/in/Phani-marupaka"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-[7px] text-white/30 hover:text-white/60 transition-colors"
+      >
+        Created &amp; Developed by Phani Marupaka
+      </a>
+    </div>
+  );
+};
+
 const ConnectionBanner = () => {
   const [connected, setConnected] = useState(socket.connected);
   useEffect(() => {
@@ -191,18 +237,7 @@ function App() {
       {loaded && <LanguageBadge />}
       {loaded && <HelpSheet />}
       {loaded && <MobileControls />}
-      {loaded && (
-        <div className="fixed bottom-1 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
-          <a
-            href="https://linkedin.com/in/Phani-marupaka"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[10px] text-white/40 hover:text-white/70 transition-colors"
-          >
-            Created &amp; Developed by Phani Marupaka
-          </a>
-        </div>
-      )}
+      {loaded && <CreditBadge isMobile={isMobile} />}
       {loaded && showWelcome && (
         <>
           <BubblesBackground />
