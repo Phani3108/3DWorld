@@ -76,3 +76,52 @@ export const fetchVenuesInCity = (cityId) =>
   getJSON(`/api/v1/cities/${encodeURIComponent(cityId)}/venues`);
 export const fetchConversationSeeds = (venueId) =>
   getJSON(`/api/v1/conversation-seeds${venueId ? `?venueId=${encodeURIComponent(venueId)}` : ""}`);
+
+// ── Phase 7E.6: Conversation archive ───────────────────────────────
+export const fetchConversations = (params = {}) => {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+  }
+  return getJSON(`/api/v1/conversations${qs.toString() ? `?${qs}` : ""}`);
+};
+export const fetchConversationTags = (params = {}) => {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+  }
+  return getJSON(`/api/v1/conversations/tags${qs.toString() ? `?${qs}` : ""}`);
+};
+export const fetchUserConversations = (userId, limit = 10) =>
+  getJSON(`/api/v1/users/${encodeURIComponent(userId)}/conversations?limit=${limit}`);
+
+// ── Phase 7G: Bazaar ───────────────────────────────────────────────
+export const fetchBazaar = (cityId) =>
+  getJSON(cityId ? `/api/v1/bazaar?city=${encodeURIComponent(cityId)}` : "/api/v1/bazaar");
+export const buyBazaarItem = (userId, itemId) =>
+  postJSON("/api/v1/bazaar/buy", { userId, itemId });
+
+// ── Phase 7I: Barter bundles ───────────────────────────────────────
+export const fetchBarter = (cityId) =>
+  getJSON(cityId ? `/api/v1/barter?city=${encodeURIComponent(cityId)}` : "/api/v1/barter");
+export const tradeBundle = (userId, bundleId) =>
+  postJSON("/api/v1/barter/trade", { userId, bundleId });
+
+// ── Phase 8E: LLM status ───────────────────────────────────────────
+export const fetchLlmStatus = () => getJSON("/api/v1/llm/status");
+
+// ── Phase 9: Quests, reputation, travel, digest ────────────────────
+export const fetchQuests = () => getJSON("/api/v1/quests");
+export const fetchUserQuests = (userId) =>
+  getJSON(`/api/v1/users/${encodeURIComponent(userId)}/quests`);
+export const acceptQuest = (userId, questId) =>
+  postJSON("/api/v1/quests/accept", { userId, questId });
+export const fetchUserReputation = (userId) =>
+  getJSON(`/api/v1/users/${encodeURIComponent(userId)}/reputation`);
+export const fetchCityLeaderboard = (cityId) =>
+  getJSON(`/api/v1/cities/${encodeURIComponent(cityId)}/leaderboard`);
+export const fetchTravelTickets = () => getJSON("/api/v1/travel/tickets");
+export const buyTravelTicket = (userId, cityId) =>
+  postJSON("/api/v1/travel/buy", { userId, cityId });
+export const fetchDailyDigest = (cityId) =>
+  getJSON(cityId ? `/api/v1/digest?city=${encodeURIComponent(cityId)}` : "/api/v1/digest");

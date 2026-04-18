@@ -30,6 +30,8 @@ import {
   worldMapOpenAtom,
   foodPanelOpenAtom,
   cameraOverviewAtom,
+  // Phase 7G — bazaar open atom lives in its own component file
+
 } from "./SocketManager";
 import DirectMessagePanel, { dmPanelTargetAtom } from "./DirectMessagePanel";
 import WalletPanel from "./WalletPanel";
@@ -38,6 +40,9 @@ import ScreenshotButton from "./ScreenshotButton";
 import StoryComposer from "./StoryComposer";
 import VehiclePicker from "./VehiclePicker";
 import { renderAvatarPortrait } from "./Avatar";
+import BazaarPanel, { bazaarOpenAtom } from "./BazaarPanel";
+import LibraryPanel, { libraryOpenAtom } from "./LibraryPanel";
+import QuestsPanel, { questsOpenAtom } from "./QuestsPanel";
 import soundManager from "../audio/SoundManager";
 
 // Offscreen thumbnail renderer — renders each GLB to a data URL image
@@ -1383,6 +1388,9 @@ export const UI = () => {
   const [, setWorldMapOpen] = useAtom(worldMapOpenAtom);
   const [, setFoodPanelOpen] = useAtom(foodPanelOpenAtom);
   const [cameraOverview, setCameraOverview] = useAtom(cameraOverviewAtom);
+  const [, setBazaarOpen] = useAtom(bazaarOpenAtom); // Phase 7G
+  const [, setLibraryOpen] = useAtom(libraryOpenAtom); // Phase 7J
+  const [, setQuestsOpen] = useAtom(questsOpenAtom);   // Phase 9B
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const [storyComposerOpen, setStoryComposerOpen] = useState(false);
   const [vehiclePickerOpen, setVehiclePickerOpen] = useState(false);
@@ -1850,6 +1858,51 @@ export const UI = () => {
                   >
                     <span className="text-xl sm:text-2xl leading-none">🍽️</span>
                     <span className="text-[10px] sm:text-xs text-amber-600 group-hover:text-amber-800 font-medium transition-colors">Food</span>
+                  </button>
+                )}
+
+                {/* Phase 7G — Bazaar (coins-only marketplace) */}
+                {roomID && (
+                  <button
+                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-amber-50 transition-colors group"
+                    onClick={() => {
+                      soundManager.play("button_click");
+                      setBazaarOpen((v) => !v);
+                    }}
+                    title="Open the bazaar"
+                  >
+                    <span className="text-xl sm:text-2xl leading-none">🛍️</span>
+                    <span className="text-[10px] sm:text-xs text-amber-600 group-hover:text-amber-800 font-medium transition-colors">Bazaar</span>
+                  </button>
+                )}
+
+                {/* Phase 7J — Library (your learned facts + citations) */}
+                {roomID && (
+                  <button
+                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-sky-50 transition-colors group"
+                    onClick={() => {
+                      soundManager.play("button_click");
+                      setLibraryOpen((v) => !v);
+                    }}
+                    title="Your library of learned facts"
+                  >
+                    <span className="text-xl sm:text-2xl leading-none">📚</span>
+                    <span className="text-[10px] sm:text-xs text-sky-600 group-hover:text-sky-800 font-medium transition-colors">Library</span>
+                  </button>
+                )}
+
+                {/* Phase 9B — Quests launcher */}
+                {roomID && (
+                  <button
+                    className="flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-emerald-50 transition-colors group"
+                    onClick={() => {
+                      soundManager.play("button_click");
+                      setQuestsOpen((v) => !v);
+                    }}
+                    title="Quests on offer"
+                  >
+                    <span className="text-xl sm:text-2xl leading-none">🎯</span>
+                    <span className="text-[10px] sm:text-xs text-emerald-700 group-hover:text-emerald-900 font-medium transition-colors">Quests</span>
                   </button>
                 )}
 

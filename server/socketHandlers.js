@@ -2,7 +2,8 @@ import bcrypt from "bcrypt";
 import { listCitiesPublic } from "./shared/cityCatalog.js";
 import { sanitizeReaction } from "./reactionCatalog.js";
 import { getFood } from "./foodCatalog.js";
-import { findVenueAt, cityIdFromRoom } from "./venueService.js";
+import { findVenueAt, findHotspotAt, cityIdFromRoom } from "./venueService.js";
+import { noteUserChatInVenue } from "./residentService.js";
 import { getVenue, publicVenue, venuesInCity } from "./shared/venueCatalog.js";
 import { pickGreeting, publicLanguage } from "./shared/languageCatalog.js";
 
@@ -428,6 +429,14 @@ export function registerSocketHandlers(deps) {
           const u = await _getUser(resolvedUserId);
           if (u?.vehicleId) persistedVehicleId = u.vehicleId;
         } catch {}
+        // Phase 7E.3 — humans' persona tags are stored on the user record.
+        // Surface them as `expertise` on the in-world character so the
+        // Avatar's expertise strip renders for humans too (same code path
+        // as residents; the client doesn't need to care which source).
+        const personaExpertise = Array.isArray(userRecord?.personaTags)
+          ? userRecord.personaTags.slice()
+          : [];
+
         character = {
           id: socket.id,
           userId: resolvedUserId,
@@ -439,6 +448,7 @@ export function registerSocketHandlers(deps) {
           name: displayName,
           coins: playerCoins.get(resolvedUserId) || DEFAULT_COINS,
           vehicleId: persistedVehicleId,
+          expertise: personaExpertise,
         };
         if (!room.password) character.canUpdateRoom = true;
         // Check if this join was triggered by a room invite
@@ -787,7 +797,7 @@ export function registerSocketHandlers(deps) {
 
       });
 
-      socket.on("move", (from, to) => {
+      socket.on("move", async (from, to) => {
         if (!room) return;
         unsitCharacter(room, socket.id, broadcastToRoom);
         const path = findPath(room, from, to);
@@ -814,16 +824,66 @@ export function registerSocketHandlers(deps) {
           const prev = character.currentVenueId || null;
           if (nextVenueId !== prev) {
             character.currentVenueId = nextVenueId;
+            // Leaving a venue also clears any active hotspot.
+            if (character.currentHotspotId) {
+              socket.emit("hotspotExit", { id: character.currentHotspotId });
+              io.to(room.id).emit("characterHotspotChange", {
+                characterId: socket.id,
+                venueId: prev,
+                hotspotId: null,
+              });
+              character.currentHotspotId = null;
+            }
             if (prev) socket.emit("venueExit", { id: prev });
             if (nextVenueId) {
               const v = getVenue(nextVenueId);
               socket.emit("venueEnter", { venue: publicVenue(v) });
+              // Phase 9B — visit_venue quest progress for the mover's user.
+              try {
+                const uid = getUserId();
+                if (uid) {
+                  const { fireQuestEvent } = await import("./questService.js");
+                  const completed = await fireQuestEvent(uid, { type: "visit_venue", target: nextVenueId });
+                  if (completed.length > 0) {
+                    socket.emit("questsCompleted", completed.map((q) => ({ id: q.id, title: q.title, reward: q.reward })));
+                  }
+                }
+              } catch {}
             }
             // Broadcast presence change so others can see who's in which venue.
             io.to(room.id).emit("characterVenueChange", {
               characterId: socket.id,
               venueId: nextVenueId,
             });
+          }
+
+          // ── Phase 7E.1: Hotspot proximity within the current venue ──
+          // Only meaningful when we're *inside* a venue. If so, pick the
+          // closest hotspot within its radius (2 cells by default) and
+          // emit hotspotEnter/Exit transitions.
+          if (nextVenueId) {
+            const hotspot = findHotspotAt(nextVenueId, character.position);
+            const nextHotspotId = hotspot ? hotspot.id : null;
+            const prevHotspotId = character.currentHotspotId || null;
+            if (nextHotspotId !== prevHotspotId) {
+              if (prevHotspotId) {
+                socket.emit("hotspotExit", { id: prevHotspotId });
+              }
+              if (hotspot) {
+                socket.emit("hotspotEnter", {
+                  venueId: nextVenueId,
+                  hotspot,
+                });
+              }
+              character.currentHotspotId = nextHotspotId;
+              // Broadcast so nearby clients can render "N people at
+              // table_1" hints and ambient dialogues know who is where.
+              io.to(room.id).emit("characterHotspotChange", {
+                characterId: socket.id,
+                venueId: nextVenueId,
+                hotspotId: nextHotspotId,
+              });
+            }
           }
         }
       });
@@ -1043,6 +1103,22 @@ export function registerSocketHandlers(deps) {
           id: socket.id,
           message: safeMessage,
         });
+
+        // Phase 7E.5 — if the chatter is inside a venue, record the
+        // timestamp so the ambient-dialogue runner backs off there.
+        if (character?.currentVenueId) {
+          noteUserChatInVenue(character.currentVenueId);
+        }
+
+        // Phase 7H — small XP for chatting (capped implicitly by chat
+        // rate-limit above, so this can't be farmed).
+        try {
+          const uid = getUserId();
+          if (uid) {
+            const { awardXp } = await import("./userStore.js");
+            awardXp(uid, "chat");
+          }
+        } catch {}
 
         // Sims-like bonding: conversation raises relationships with nearby characters.
         const nearby = room.characters.filter((c) => {

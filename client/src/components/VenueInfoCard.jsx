@@ -3,11 +3,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAtom } from "jotai";
 import {
   currentVenueAtom,
+  currentHotspotAtom,
   coinsAtom,
   inventoryAtom,
   roomIDAtom,
   usernameAtom,
   languageAtom,
+  llmStatusAtom,
 } from "./SocketManager";
 import { buyFood, askAgent } from "../lib/api";
 
@@ -18,7 +20,9 @@ import { buyFood, askAgent } from "../lib/api";
  */
 export const VenueInfoCard = () => {
   const [venue] = useAtom(currentVenueAtom);
+  const [hotspotState] = useAtom(currentHotspotAtom);
   const [language] = useAtom(languageAtom);
+  const [llmStatus] = useAtom(llmStatusAtom);
   const [coins, setCoins] = useAtom(coinsAtom);
   const [inventory, setInventory] = useAtom(inventoryAtom);
   const [roomID] = useAtom(roomIDAtom);
@@ -36,6 +40,51 @@ export const VenueInfoCard = () => {
   const menu = Array.isArray(venue.menu) ? venue.menu : [];
   const seeds = venue.conversation?.suggestedSeeds || [];
   const funFacts = venue.information?.funFacts || [];
+
+  // Phase 7E.1 — hotspot affordance. Only considered if the backend says
+  // we're inside *this* venue (defensive against stale state).
+  const hotspot =
+    hotspotState && hotspotState.venueId === venue.id ? hotspotState.hotspot : null;
+  const hotspotActionLabel = (() => {
+    if (!hotspot) return null;
+    switch (hotspot.kind) {
+      case "order":           return menu.length > 0 ? `+ ${menu[0]}`  : "Order";
+      case "lean_on_counter": return "Chat with the host";
+      case "sit_and_chat":    return seeds.length > 0 ? "Ask the host" : "Sit & chat";
+      case "pose_together":   return "📸 Take a photo";
+      case "listen":          return "👂 Listen in";
+      default:                return null;
+    }
+  })();
+  const handleHotspotAction = () => {
+    if (!hotspot) return;
+    switch (hotspot.kind) {
+      case "order":
+        if (menu.length > 0) handleBuy(menu[0]);
+        return;
+      case "lean_on_counter":
+      case "sit_and_chat":
+        if (seeds.length > 0) handleAskSeed(seeds[0]);
+        return;
+      case "pose_together": {
+        // Dispatch a global event — ScreenshotButton (Phase 6) listens for
+        // this so we don't have to couple the two components tightly.
+        const ev = new CustomEvent("3dworld:takeScreenshot", {
+          detail: { source: "hotspot", venueId: venue.id, hotspotId: hotspot.id },
+        });
+        window.dispatchEvent(ev);
+        return;
+      }
+      case "listen":
+        // 7E.5 will hook this into the ambient-dialogue subscription. For now
+        // surface an acknowledgement so the button feels alive.
+        setAskMsg({ type: "info", text: "Listening for ambient chatter…" });
+        setTimeout(() => setAskMsg(null), 2800);
+        return;
+      default:
+        return;
+    }
+  };
 
   const handleBuy = async (foodId) => {
     const userId = localStorage.getItem("3dworld_user_id");
@@ -93,10 +142,25 @@ export const VenueInfoCard = () => {
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-bold text-white truncate">{venue.name}</h3>
               <p className="text-[11px] text-gray-400 line-clamp-2">{venue.blurb}</p>
-              <div className="flex gap-1 mt-1 text-[9px] uppercase tracking-wider">
+              <div className="flex gap-1 mt-1 text-[9px] uppercase tracking-wider flex-wrap">
                 <span className="text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded">{venue.type}</span>
                 {venue.ambience?.music && (
                   <span className="text-pink-300 bg-pink-500/20 px-1.5 py-0.5 rounded">🎵 ambience</span>
+                )}
+                {/* Phase 8E — LLM status chip. Shows ⚡ Live when a real
+                    provider is configured, 🤖 Stub when running without
+                    an API key (still demonstrable). */}
+                {llmStatus?.active && (
+                  <span
+                    className={
+                      llmStatus.active.stub
+                        ? "text-gray-300 bg-slate-500/25 px-1.5 py-0.5 rounded"
+                        : "text-cyan-200 bg-cyan-500/25 px-1.5 py-0.5 rounded"
+                    }
+                    title={`${llmStatus.active.id} · ${llmStatus.active.model}`}
+                  >
+                    {llmStatus.active.stub ? "🤖 stub" : `⚡ ${llmStatus.active.id}`}
+                  </span>
                 )}
               </div>
             </div>
@@ -117,6 +181,28 @@ export const VenueInfoCard = () => {
               <span className="text-amber-400">💬 </span>
               "{venue.conversation.defaultGreeting}"
             </p>
+          </div>
+        )}
+
+        {/* Phase 7E.1 — Hotspot chip + affordance button */}
+        {hotspot && (
+          <div className="px-4 py-2 bg-amber-500/10 border-y border-amber-400/25 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[9px] uppercase tracking-wider text-amber-400/80">
+                📍 You're at
+              </div>
+              <div className="text-xs font-semibold text-amber-100 truncate">
+                {hotspot.label}
+              </div>
+            </div>
+            {hotspotActionLabel && (
+              <button
+                onClick={handleHotspotAction}
+                className="shrink-0 text-[11px] bg-amber-500/30 hover:bg-amber-500/45 text-amber-50 px-3 py-1.5 rounded-lg border border-amber-400/40 font-semibold transition-colors"
+              >
+                {hotspotActionLabel}
+              </button>
+            )}
           </div>
         )}
 

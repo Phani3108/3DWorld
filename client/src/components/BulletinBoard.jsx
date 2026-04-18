@@ -221,6 +221,11 @@ export const BulletinBoardPanel = () => {
   const [tab, setTab] = useState("stories");
   const [feed, setFeed] = useState([]);
   const [feedLoaded, setFeedLoaded] = useState(false);
+  // Phase 7E.7 — Knowledge-shared (conversation archive) tab
+  const [knowledge, setKnowledge] = useState([]);
+  const [kTags, setKTags] = useState([]);
+  const [kActiveTag, setKActiveTag] = useState(null);
+  const [kLoaded, setKLoaded] = useState(false);
 
   // Lazy-load the world feed when the bulletin board opens.
   useEffect(() => {
@@ -233,6 +238,24 @@ export const BulletinBoardPanel = () => {
     });
     return () => { cancelled = true; };
   }, [open]);
+
+  // Phase 7E.7 — lazy-load the conversation archive + tag histogram
+  useEffect(() => {
+    if (!open || tab !== "knowledge") return;
+    let cancelled = false;
+    import("../lib/api").then(({ fetchConversations, fetchConversationTags }) => {
+      Promise.all([
+        fetchConversations({ tag: kActiveTag || undefined, limit: 30 }),
+        fetchConversationTags({ limit: 20 }),
+      ]).then(([list, tags]) => {
+        if (cancelled) return;
+        setKnowledge(Array.isArray(list) ? list : []);
+        setKTags(Array.isArray(tags) ? tags : []);
+        setKLoaded(true);
+      }).catch(() => { if (!cancelled) setKLoaded(true); });
+    });
+    return () => { cancelled = true; };
+  }, [open, tab, kActiveTag]);
 
   if (!open) return null;
 
@@ -259,18 +282,24 @@ export const BulletinBoardPanel = () => {
         </div>
 
         {/* Tabs */}
-        <div className="flex text-xs font-bold uppercase tracking-wider" style={{ background: "#b18253" }}>
+        <div className="flex text-[11px] font-bold uppercase tracking-wider" style={{ background: "#b18253" }}>
           <button
             className={`flex-1 py-2 transition-colors ${tab === "stories" ? "bg-amber-700 text-white" : "text-amber-100/80 hover:bg-amber-700/60"}`}
             onClick={() => setTab("stories")}
           >
-            📌 World Feed
+            📌 World
+          </button>
+          <button
+            className={`flex-1 py-2 transition-colors ${tab === "knowledge" ? "bg-amber-700 text-white" : "text-amber-100/80 hover:bg-amber-700/60"}`}
+            onClick={() => setTab("knowledge")}
+          >
+            🧠 Knowledge
           </button>
           <button
             className={`flex-1 py-2 transition-colors ${tab === "thoughts" ? "bg-amber-700 text-white" : "text-amber-100/80 hover:bg-amber-700/60"}`}
             onClick={() => setTab("thoughts")}
           >
-            🤖 Agent Thoughts
+            🤖 Thoughts
           </button>
         </div>
 
@@ -305,6 +334,52 @@ export const BulletinBoardPanel = () => {
                 <FeedCard key={entry.id} entry={entry} index={i} />
               ))
             )
+          )}
+
+          {tab === "knowledge" && (
+            <>
+              {/* Tag filter chip row */}
+              {kTags.length > 0 && (
+                <div className="flex flex-wrap gap-1 -mx-1 mb-1">
+                  <button
+                    onClick={() => setKActiveTag(null)}
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-semibold transition-colors ${
+                      kActiveTag === null
+                        ? "bg-amber-900 text-amber-50"
+                        : "bg-amber-100/80 text-amber-900 hover:bg-amber-200"
+                    }`}
+                  >
+                    all
+                  </button>
+                  {kTags.slice(0, 16).map(({ tag, count }) => (
+                    <button
+                      key={tag}
+                      onClick={() => setKActiveTag(tag === kActiveTag ? null : tag)}
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-semibold transition-colors ${
+                        kActiveTag === tag
+                          ? "bg-amber-900 text-amber-50"
+                          : "bg-amber-100/80 text-amber-900 hover:bg-amber-200"
+                      }`}
+                      title={`${count} thread${count !== 1 ? "s" : ""}`}
+                    >
+                      {tag} <span className="opacity-60">·{count}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {/* Threads list */}
+              {!kLoaded ? (
+                <p className="text-center text-amber-700/60 text-sm py-8">Loading archive…</p>
+              ) : knowledge.length === 0 ? (
+                <p className="text-center text-amber-700/60 text-sm py-8">
+                  No archived conversations yet {kActiveTag ? `for "${kActiveTag}"` : ""}. Ask a host about their specialty — it'll land here.
+                </p>
+              ) : (
+                knowledge.map((t, i) => (
+                  <KnowledgeCard key={t.id} entry={t} index={i} />
+                ))
+              )}
+            </>
           )}
         </div>
       </div>
@@ -362,6 +437,62 @@ const FeedCard = ({ entry, index = 0 }) => {
             {entry.text}
           </p>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// Phase 7E.7 — one archived Q&A as a pinned note.
+const KnowledgeCard = ({ entry, index = 0 }) => {
+  const rot = ((index % 5) - 2) * 1.5;
+  return (
+    <div
+      className="relative p-3 px-4 rounded-sm"
+      style={{
+        transform: `rotate(${rot}deg)`,
+        background: "linear-gradient(145deg, #e0f2fe 0%, #bae6fd 50%, #7dd3fc 100%)",
+        boxShadow: "0 1px 1px rgba(0,0,0,0.08), 0 2px 2px rgba(0,0,0,0.08), 0 4px 4px rgba(0,0,0,0.08)",
+      }}
+    >
+      <div
+        className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full z-10"
+        style={{
+          background: "radial-gradient(circle at 30% 30%, #0ea5e9, #0369a1)",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+        }}
+      />
+      <div className="mt-1">
+        <div className="flex items-baseline gap-1.5 flex-wrap">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-sky-900">
+            {entry.fromName || "someone"} → {entry.toBotName || "resident"}
+          </span>
+          {entry.venueName && (
+            <span className="text-[9px] bg-sky-900 text-sky-50 px-1 py-0.5 rounded font-bold">
+              {entry.venueName}
+            </span>
+          )}
+          <span className="text-[9px] text-sky-800/70 ml-auto">
+            {new Date(entry.at).toLocaleString()}
+          </span>
+        </div>
+        <p className="text-[12px] text-sky-900 font-semibold mt-1">
+          Q: {entry.question}
+        </p>
+        <p className="text-[12px] text-sky-900/90 mt-0.5 break-words">
+          A: {entry.answer}
+        </p>
+        {Array.isArray(entry.tags) && entry.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            {entry.tags.slice(0, 6).map((tag) => (
+              <span
+                key={tag}
+                className="text-[9px] bg-sky-900/20 text-sky-900 px-1.5 py-[1px] rounded-full"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

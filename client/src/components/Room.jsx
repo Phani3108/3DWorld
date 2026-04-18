@@ -131,6 +131,7 @@ const CharacterList = React.memo(() => {
               leaving={character.leaving}
               showHtmlOverlay={htmlVisibleSet.has(character.id)}
               vehicleId={character.vehicleId}
+              expertise={character.expertise}
             />
           </Suspense>
         </AvatarErrorBoundary>

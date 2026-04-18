@@ -20,7 +20,7 @@ import { bonds, BOND_LEVELS, bondKey, getBondLevel, loadBonds, saveBonds, applyB
 import { playerCoins, DEFAULT_COINS, updateCoins, getCoins, setCoins, transferCoins } from "./currencyQuests.js";
 import { botRegistry, botSockets, loadBotRegistry, saveBotRegistry, sendWebhook, syncAgentsToBotRegistry, syncBotRegistryToAgents } from "./botRegistry.js";
 import { loadUserStore, loadCompletedQuests, ensureUser, getUser, createUserId, touchUser, validateSessionToken, setSessionToken, createSessionToken, updateProfile } from "./userStore.js";
-import { spawnResidents, startResidentTick } from "./residentService.js";
+import { spawnResidents, startResidentTick, startAmbientDialogueTick } from "./residentService.js";
 import { initObjectives, checkBondMilestones, objectivesPayload, cleanupObjectives } from "./objectiveSystem.js";
 import { createHttpHandler } from "./httpRoutes.js";
 import { registerSocketHandlers } from "./socketHandlers.js";
@@ -373,6 +373,8 @@ httpHandler._deps.io = io;
 
 // Start resident ambient behaviour (greetings, small drifts, chatter).
 startResidentTick({ io, rooms, getCachedRoom });
+// Phase 7E.5 — scripted ambient dialogues between host+regular pairs.
+startAmbientDialogueTick({ io, getCachedRoom });
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT);

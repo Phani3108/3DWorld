@@ -1,8 +1,99 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AvatarPicker } from "./AvatarPicker";
 import { AccentPicker } from "./AccentPicker";
 import { ProfileForm } from "./ProfileForm";
+
+const SERVER_URL =
+  import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
+
+// Phase 7E.3 — pick up to 4 persona tags from the shared expertise catalog.
+// Fetches on first open; displays grouped chip rows; stores tag ids only.
+const PersonaTagPicker = ({ value, onChange }) => {
+  const [catalog, setCatalog] = useState(null);
+  const [err, setErr] = useState(null);
+  const selected = Array.isArray(value) ? value : [];
+  const MAX = 4;
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${SERVER_URL}/api/v1/expertise`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((data) => { if (!cancelled) setCatalog(data); })
+      .catch((e) => { if (!cancelled) setErr(String(e)); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const toggle = (id) => {
+    if (selected.includes(id)) {
+      onChange(selected.filter((t) => t !== id));
+      return;
+    }
+    if (selected.length >= MAX) return;
+    onChange([...selected, id]);
+  };
+
+  if (err) return null;
+  if (!catalog) {
+    return <div className="text-xs text-gray-500 mt-3">Loading tags…</div>;
+  }
+
+  // Group tags by their `group` field so the picker reads as cuisine / drinks / …
+  const byGroup = {};
+  for (const [id, entry] of Object.entries(catalog.tags)) {
+    const g = entry.group || "other";
+    (byGroup[g] || (byGroup[g] = [])).push({ id, ...entry });
+  }
+
+  return (
+    <div className="mt-4 pt-4 border-t border-[#2a2a3e]">
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+          🎓 Persona tags
+        </label>
+        <span className="text-[10px] text-gray-500">
+          {selected.length} / {MAX}
+        </span>
+      </div>
+      <p className="text-[11px] text-gray-500 mb-2">
+        Pick up to {MAX} things you love or know. Others see these when they hover you.
+      </p>
+      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+        {Object.entries(byGroup).map(([g, tags]) => (
+          <div key={g}>
+            <div className="text-[9px] uppercase tracking-wider text-gray-500 mb-1">
+              {catalog.groups?.[g]?.emoji || ""} {catalog.groups?.[g]?.label || g}
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {tags.map((t) => {
+                const on = selected.includes(t.id);
+                const disabled = !on && selected.length >= MAX;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => toggle(t.id)}
+                    disabled={disabled}
+                    className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                      on
+                        ? "bg-cyan-500/25 text-cyan-100 border-cyan-400/60"
+                        : disabled
+                        ? "bg-[#1f1f33] text-gray-600 border-[#2a2a3e] opacity-60 cursor-not-allowed"
+                        : "bg-[#1f1f33] text-gray-300 border-[#2a2a3e] hover:border-cyan-400/40"
+                    }`}
+                    title={t.label}
+                  >
+                    <span>{t.emoji}</span> <span>{t.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 export const WelcomeModal = ({ onChoice }) => {
   // steps: "choose" → "human" (name) → "avatar" (pick+accent) → "about" (optional profile) → enter
@@ -11,6 +102,7 @@ export const WelcomeModal = ({ onChoice }) => {
   const [avatarUrl, setAvatarUrl] = useState(localStorage.getItem("avatarURL") || "");
   const [accentId, setAccentId] = useState(localStorage.getItem("3dworld_accent") || "sky");
   const [profile, setProfile] = useState({ pronouns: "", bio: "", homeCity: null, socials: {} });
+  const [personaTags, setPersonaTags] = useState([]); // Phase 7E.3
   const [activeTab, setActiveTab] = useState("3dhub");
   const [agentTab, setAgentTab] = useState("3dhub");
   const [copied, setCopied] = useState(null);
@@ -52,6 +144,7 @@ export const WelcomeModal = ({ onChoice }) => {
       bio: profilePatch.bio || "",
       homeCity: profilePatch.homeCity || null,
       socials: profilePatch.socials || {},
+      personaTags, // Phase 7E.3
     });
   };
 
@@ -334,6 +427,8 @@ export const WelcomeModal = ({ onChoice }) => {
             </p>
 
             <ProfileForm value={profile} onChange={setProfile} />
+
+            <PersonaTagPicker value={personaTags} onChange={setPersonaTags} />
 
             <div className="flex gap-2 mt-6">
               <button

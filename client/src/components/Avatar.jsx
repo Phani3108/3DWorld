@@ -9,7 +9,7 @@ import { atom, useAtom } from "jotai";
 import React, { useEffect, useMemo, useRef, useState, memo, useCallback } from "react";
 import { SkeletonUtils } from "three-stdlib";
 import { useGrid } from "../hooks/useGrid";
-import { socket, userAtom, avatarDispatch, bondsAtom, charactersAtom, characterEmotionsAtom, dmInboxOpenAtom, selfLivePosition, mapAtom, profileViewTargetAtom, characterReactionsAtom, characterEatingAtom } from "./SocketManager";
+import { socket, userAtom, avatarDispatch, bondsAtom, charactersAtom, characterEmotionsAtom, dmInboxOpenAtom, selfLivePosition, mapAtom, profileViewTargetAtom, characterReactionsAtom, characterEatingAtom, expertiseCatalogAtom } from "./SocketManager";
 import { dmPanelTargetAtom } from "./DirectMessagePanel";
 import soundManager from "../audio/SoundManager";
 
@@ -204,6 +204,7 @@ export const Avatar = memo(function Avatar({
   gridPosition,
   showHtmlOverlay = true,
   vehicleId = "walk",
+  expertise = null, // Phase 7E.2: string[] of tag ids (or null)
 }) {
   const [chatMessage, setChatMessage] = useState("");
   const [actionStatus, setActionStatus] = useState(null); // { action, detail }
@@ -214,8 +215,24 @@ export const Avatar = memo(function Avatar({
   const [, setProfileViewTarget] = useAtom(profileViewTargetAtom);
   const [reactionsMap] = useAtom(characterReactionsAtom);
   const [eatingMap] = useAtom(characterEatingAtom);
+  const [expertiseCatalog] = useAtom(expertiseCatalogAtom); // Phase 7E.2
   const myReaction = reactionsMap[id];
   const myEating = eatingMap[id];
+
+  // Phase 7E.2 — hydrate expertise tag ids into {emoji, label} chips.
+  // Caps at 3 to avoid crowding the avatar crown.
+  const expertiseChips = useMemo(() => {
+    if (!Array.isArray(expertise) || expertise.length === 0) return [];
+    const tags = expertiseCatalog?.tags;
+    if (!tags) return [];
+    const out = [];
+    for (const id of expertise) {
+      const entry = tags[id];
+      if (entry) out.push({ id, ...entry });
+      if (out.length >= 3) break;
+    }
+    return out;
+  }, [expertise, expertiseCatalog]);
   const { gridToVector3 } = useGrid();
   const position = useMemo(() => gridToVector3(gridPosition), []);
   // Use refs for culling state to avoid re-renders from useFrame distance checks
@@ -1025,6 +1042,45 @@ export const Avatar = memo(function Avatar({
     setHovered(false);
   }, [id, userId, setProfileViewTarget]);
 
+  // Phase 7F — task/teach/invite quick actions from the hover menu.
+  const handleHoverTask = useCallback((e) => {
+    e.stopPropagation();
+    const ask = window.prompt(`Give ${name} a task (1 line):`);
+    if (ask && ask.trim()) {
+      socket.emit("chatMessage", `@${name} task: ${ask.trim().slice(0, 140)}`);
+    }
+    setHovered(false);
+  }, [name]);
+
+  const handleHoverTeach = useCallback((e) => {
+    e.stopPropagation();
+    const q = window.prompt(`What do you want ${name} to teach you?`);
+    if (q && q.trim()) {
+      if (isBot) {
+        // Route through the Ask-an-Agent REST endpoint via its helper.
+        import("../lib/api").then(({ askAgent }) => {
+          const fromUserId = localStorage.getItem("3dworld_user_id");
+          const fromName   = localStorage.getItem("3dworld_username") || "friend";
+          askAgent(fromUserId, fromName, userId || id, q.trim(), null, null).catch(() => {});
+        });
+      } else {
+        // Human-to-human: send as a direct chat so they can answer freely.
+        socket.emit("chatMessage", `@${name} teach me: ${q.trim().slice(0, 140)}`);
+      }
+    }
+    setHovered(false);
+  }, [id, userId, name, isBot]);
+
+  const handleHoverInvite = useCallback((e) => {
+    e.stopPropagation();
+    socket.emit("inviteToRoom", id, (res) => {
+      if (res && res.success === false && res.error) {
+        console.warn("[invite]", res.error);
+      }
+    });
+    setHovered(false);
+  }, [id]);
+
   return (
     <group
       ref={group}
@@ -1049,6 +1105,35 @@ export const Avatar = memo(function Avatar({
               }}
             >
               <div className="flex flex-col items-center justify-center gap-0.5 whitespace-nowrap">
+                {/* Phase 7E.2 — expertise emoji strip above the name. Always
+                    visible (subtle); shows labels when hovered. */}
+                {expertiseChips.length > 0 && (
+                  <div
+                    className="flex items-center gap-0.5"
+                    style={{
+                      filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.5))",
+                    }}
+                  >
+                    {expertiseChips.map((c) => (
+                      <span
+                        key={c.id}
+                        title={c.label}
+                        className="text-[11px] leading-none"
+                        style={hovered ? {
+                          background: "rgba(15,23,42,0.75)",
+                          color: "#e2e8f0",
+                          padding: "1px 5px",
+                          borderRadius: 9999,
+                          fontSize: 9,
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                        } : undefined}
+                      >
+                        {c.emoji}{hovered ? ` ${c.label}` : ""}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {(() => {
                   const emotion = characterEmotions[id];
                   let moodEmoji = null;
@@ -1142,6 +1227,43 @@ export const Avatar = memo(function Avatar({
                   title="View profile"
                 >
                   <span>{"\u{1F464}"}</span> Profile
+                </button>
+                {/* Phase 7F — Task / Teach / Invite quick chips */}
+                <button
+                  onClick={handleHoverTask}
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium text-white cursor-pointer transition-all hover:scale-105 active:scale-95"
+                  style={{
+                    background: 'rgba(20,83,45,0.65)',
+                    backdropFilter: 'blur(4px)',
+                    border: '1px solid rgba(134,239,172,0.35)',
+                  }}
+                  title="Give a task"
+                >
+                  <span>📋</span> Task
+                </button>
+                <button
+                  onClick={handleHoverTeach}
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium text-white cursor-pointer transition-all hover:scale-105 active:scale-95"
+                  style={{
+                    background: 'rgba(55,48,163,0.65)',
+                    backdropFilter: 'blur(4px)',
+                    border: '1px solid rgba(165,180,252,0.35)',
+                  }}
+                  title={isBot ? "Ask this agent to teach you" : "Ask this person to teach you"}
+                >
+                  <span>🎓</span> Teach
+                </button>
+                <button
+                  onClick={handleHoverInvite}
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium text-white cursor-pointer transition-all hover:scale-105 active:scale-95"
+                  style={{
+                    background: 'rgba(133,77,14,0.65)',
+                    backdropFilter: 'blur(4px)',
+                    border: '1px solid rgba(252,211,77,0.35)',
+                  }}
+                  title="Invite to your room"
+                >
+                  <span>✉️</span> Invite
                 </button>
               </div>
             </Html>

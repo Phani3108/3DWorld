@@ -75,6 +75,10 @@ const ensureProfileDefaults = (user) => {
   if (!user.inventory) user.inventory = { food: [] };
   if (user.teachingCount === undefined) user.teachingCount = 0;
   if (user.vehicleId === undefined) user.vehicleId = "walk";
+  // Phase 7E.3 — opt-in persona tags humans pick in WelcomeModal.
+  if (!Array.isArray(user.personaTags)) user.personaTags = [];
+  // Phase 7H — cumulative XP (tier derived at projection time).
+  if (user.xp === undefined) user.xp = 0;
   return user;
 };
 
@@ -394,6 +398,11 @@ export const updateProfile = async (userId, patch = {}) => {
   if (patch.socials && typeof patch.socials === "object") {
     existing.socials = { ...existing.socials, ...sanitizeSocials(patch.socials) };
   }
+  // Phase 7E.3 — persona tags (same controlled vocabulary as residents).
+  if (Array.isArray(patch.personaTags)) {
+    const { normalizeExpertiseTags } = await import("./shared/expertiseCatalog.js");
+    existing.personaTags = normalizeExpertiseTags(patch.personaTags, 4);
+  }
 
   existing.updatedAt = nowMs();
   persistUsers();
@@ -418,12 +427,16 @@ export const publicProfile = (user, { storyLimit = 20, memoryLimit = 30, factLim
     bio: user.bio || "",
     homeCity: user.homeCity || null,
     socials: user.socials || {},
+    // Phase 7E.3 — raw personaTags; the /profile endpoint hydrates them
+    // with {emoji,label} via the expertise catalog before sending.
+    personaTags: Array.isArray(user.personaTags) ? user.personaTags.slice() : [],
     stats: {
       coins: user.coins,
       storyCount: (user.stories || []).length,
       memoryCount: (user.memories || []).length,
       factCount: (user.learnedFacts || []).length,
       teachingCount: user.teachingCount || 0,
+      xp: user.xp || 0, // Phase 7H
     },
     stories:      (user.stories      || []).slice(0, storyLimit),
     memories:     (user.memories     || []).slice(0, memoryLimit),
@@ -571,4 +584,24 @@ export const incrementTeachingCount = async (userId, delta = 1) => {
   user.updatedAt = Date.now();
   persistUsers();
   return user.teachingCount;
+};
+
+/**
+ * Phase 7H — award XP for a social event. Returns the new cumulative XP
+ * or null if no user record. Fire-and-forget from call sites; small cap
+ * so the persist cost stays negligible.
+ */
+export const awardXp = async (userId, event, extra = 0) => {
+  if (!userId) return null;
+  if (isDbAvailable()) return null;
+  const user = users.get(userId);
+  if (!user) return null;
+  ensureProfileDefaults(user);
+  const { xpFor } = await import("./shared/tierCatalog.js");
+  const delta = xpFor(event) + (typeof extra === "number" ? extra : 0);
+  if (delta <= 0) return user.xp;
+  user.xp = (user.xp || 0) + delta;
+  user.updatedAt = Date.now();
+  persistUsers();
+  return user.xp;
 };

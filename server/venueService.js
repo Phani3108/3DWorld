@@ -9,6 +9,7 @@
  */
 
 import { VENUES } from "./shared/venueCatalog.js";
+import { findClosestHotspot } from "./shared/venueHotspots.js";
 
 /**
  * @param {string|null} cityId
@@ -50,6 +51,20 @@ export const findVenueAt = (cityId, gridPos) => {
   }
 
   return best;
+};
+
+/**
+ * Phase 7E.1 — Within a venue the player may be at (or near) a labelled
+ * hotspot (counter, bench, photo spot). Return the closest one within
+ * its tolerance radius, or null if not near anything.
+ *
+ * @param {string|null} venueId
+ * @param {[number, number]} gridPos
+ * @returns {object|null} hotspot entry (with grid/kind/label/capacity) or null
+ */
+export const findHotspotAt = (venueId, gridPos) => {
+  if (!venueId) return null;
+  return findClosestHotspot(venueId, gridPos);
 };
 
 /**

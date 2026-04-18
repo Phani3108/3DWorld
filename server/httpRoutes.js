@@ -13,7 +13,17 @@ import { createQuestion, claimAnswer, getPendingForBot } from "./knowledgeServic
 import { publicLanguage, LANGUAGES } from "./shared/languageCatalog.js";
 import { getVenue, publicVenue, venuesInCity, allVenuesPublic, matchCannedAnswer } from "./shared/venueCatalog.js";
 import { findVenueAt, cityIdFromRoom } from "./venueService.js";
-import { allResidentsPublic, publicResident, residentsInCity, getResident } from "./shared/residentCatalog.js";
+import { allResidentsPublic, publicResident, residentsInCity, getResident, residentsByExpertise } from "./shared/residentCatalog.js";
+import { EXPERTISE_TAGS, EXPERTISE_GROUPS, getExpertise, hydrateExpertiseTags } from "./shared/expertiseCatalog.js";
+import { matchResidentCannedAnswer } from "./shared/residentQA.js";
+import { appendConversation, listConversations, listConversationsForUser, tagFrequencies } from "./conversationLog.js";
+import { answerAsResident } from "./llm/llmService.js";
+import { getActiveProvider, listProviders } from "./llm/providerCatalog.js";
+import { guardStats } from "./llm/costGuards.js";
+import { memoryStats } from "./llm/memoryStore.js";
+import { acceptQuest, tickEvent, listUserQuests, questCounts, fireQuestEvent } from "./questService.js";
+import { allQuestsPublic, getQuest, questsByGiver } from "./shared/questCatalog.js";
+import { addReputation, getUserReputation, reputationTier, cityLeaderboard, REPUTATION_TIERS } from "./reputationService.js";
 import { findResidentCharacter } from "./residentService.js";
 import { VEHICLES, getVehicle, allVehiclesPublic, DEFAULT_VEHICLE_ID } from "./shared/vehicleCatalog.js";
 
@@ -1074,9 +1084,16 @@ Want to build your own space? Each bot gets **one room** — here's how:
       return json(res, 200, { ok: true, vehicleId, coins: newBalance, cost: (vehicleId === prev ? 0 : v.coinPerTrip) });
     }
 
-    // Residents (Phase 7)
-    if (req.method === "GET" && req.url === "/api/v1/residents") {
-      return json(res, 200, allResidentsPublic());
+    // Residents (Phase 7) — supports ?tag=<expertise> + ?city=<cityId> filters
+    if (req.method === "GET" && req.url?.startsWith("/api/v1/residents") && !req.url.match(/\/api\/v1\/residents\/[a-z0-9_-]+$/)) {
+      const u = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      const tag = u.searchParams.get("tag");
+      const city = u.searchParams.get("city");
+      let list = tag
+        ? residentsByExpertise(tag).map(publicResident)
+        : allResidentsPublic();
+      if (city) list = list.filter((r) => r.cityId === city);
+      return json(res, 200, list);
     }
     const residentByIdMatch = req.url?.match(/^\/api\/v1\/residents\/([a-z0-9_-]+)$/);
     if (req.method === "GET" && residentByIdMatch) {
@@ -1087,6 +1104,49 @@ Want to build your own space? Each bot gets **one room** — here's how:
     const residentsByCityMatch = req.url?.match(/^\/api\/v1\/cities\/([a-z0-9_-]+)\/residents$/);
     if (req.method === "GET" && residentsByCityMatch) {
       return json(res, 200, residentsInCity(residentsByCityMatch[1]).map(publicResident));
+    }
+
+    // Expertise catalog (Phase 7E.2)
+    if (req.method === "GET" && req.url === "/api/v1/expertise") {
+      return json(res, 200, {
+        groups: EXPERTISE_GROUPS,
+        tags: EXPERTISE_TAGS,
+      });
+    }
+    const expertiseByIdMatch = req.url?.match(/^\/api\/v1\/expertise\/([a-z0-9_-]+)$/);
+    if (req.method === "GET" && expertiseByIdMatch) {
+      const entry = getExpertise(expertiseByIdMatch[1]);
+      if (!entry) return json(res, 404, { error: "expertise_not_found" });
+      return json(res, 200, { id: expertiseByIdMatch[1], ...entry });
+    }
+
+    // Phase 7E.6 — conversation archive (searchable Q&A history)
+    if (req.method === "GET" && req.url?.startsWith("/api/v1/conversations/tags")) {
+      const u = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      return json(res, 200, tagFrequencies({
+        cityId:  u.searchParams.get("city")  || undefined,
+        venueId: u.searchParams.get("venue") || undefined,
+        limit:   parseInt(u.searchParams.get("limit") || "30", 10),
+      }));
+    }
+    if (req.method === "GET" && req.url?.startsWith("/api/v1/conversations")) {
+      const u = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      return json(res, 200, listConversations({
+        tag:        u.searchParams.get("tag")    || undefined,
+        venue:      u.searchParams.get("venue")  || undefined,
+        city:       u.searchParams.get("city")   || undefined,
+        user:       u.searchParams.get("user")   || undefined,
+        residentId: u.searchParams.get("resident") || undefined,
+        q:          u.searchParams.get("q")      || undefined,
+        limit:      parseInt(u.searchParams.get("limit") || "50", 10),
+      }));
+    }
+    const userConvMatch = req.url?.match(/^\/api\/v1\/users\/([A-Za-z0-9_-]+)\/conversations(?:\?.*)?$/);
+    if (req.method === "GET" && userConvMatch) {
+      const u = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      return json(res, 200, listConversationsForUser(userConvMatch[1], {
+        limit: parseInt(u.searchParams.get("limit") || "10", 10),
+      }));
     }
 
     // Venues
@@ -1129,12 +1189,228 @@ Want to build your own space? Each bot gets **one room** — here's how:
       return json(res, 200, { seeds: GLOBAL_SEEDS });
     }
 
+    // Quests (Phase 9B) — catalog browse, per-user state, accept flow
+    if (req.method === "GET" && req.url === "/api/v1/quests") {
+      return json(res, 200, allQuestsPublic());
+    }
+    const questByIdMatch = req.url?.match(/^\/api\/v1\/quests\/([a-z0-9_]+)$/);
+    if (req.method === "GET" && questByIdMatch) {
+      const q = getQuest(questByIdMatch[1]);
+      if (!q) return json(res, 404, { error: "quest_not_found" });
+      return json(res, 200, q);
+    }
+    const questsByGiverMatch = req.url?.match(/^\/api\/v1\/residents\/([a-z0-9_-]+)\/quests$/);
+    if (req.method === "GET" && questsByGiverMatch) {
+      return json(res, 200, questsByGiver(questsByGiverMatch[1]));
+    }
+    const userQuestsMatch = req.url?.match(/^\/api\/v1\/users\/([A-Za-z0-9_-]+)\/quests(?:\?.*)?$/);
+    if (req.method === "GET" && userQuestsMatch) {
+      return json(res, 200, listUserQuests(userQuestsMatch[1]));
+    }
+    if (req.method === "POST" && req.url === "/api/v1/quests/accept") {
+      let payload;
+      try { payload = await readBody(req); }
+      catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
+      const { userId, questId } = payload || {};
+      const r = acceptQuest(userId, questId);
+      if (!r.ok) return json(res, 400, r);
+      return json(res, 200, r);
+    }
+
+    // Reputation (Phase 9C)
+    const userRepMatch = req.url?.match(/^\/api\/v1\/users\/([A-Za-z0-9_-]+)\/reputation$/);
+    if (req.method === "GET" && userRepMatch) {
+      return json(res, 200, {
+        scores: getUserReputation(userRepMatch[1]),
+        tiers: REPUTATION_TIERS,
+      });
+    }
+    const cityLeaderboardMatch = req.url?.match(/^\/api\/v1\/cities\/([a-z0-9_-]+)\/leaderboard$/);
+    if (req.method === "GET" && cityLeaderboardMatch) {
+      return json(res, 200, cityLeaderboard(cityLeaderboardMatch[1], 20));
+    }
+
+    // Cross-city travel (Phase 9D) — coins-or-reputation gate. Returns a
+    // signed "ticket" the client can include in the next joinRoom(city).
+    // The ticket also carries the destination cityId so the socket handler
+    // can sanity-check it.
+    if (req.method === "GET" && req.url === "/api/v1/travel/tickets") {
+      // Static pricing — cheaper if you have reputation in the destination.
+      return json(res, 200, {
+        baseCoins: 20,
+        reputationDiscountPer50: 5,
+        minCoins: 5,
+        reputationRequiredFor: [
+          { cityId: "dubai", repThreshold: 75, label: "Gold Souk is choosy." },
+          { cityId: "newyork", repThreshold: 25, label: "Bodega crowd wants to know you." },
+        ],
+      });
+    }
+    if (req.method === "POST" && req.url === "/api/v1/travel/buy") {
+      let payload;
+      try { payload = await readBody(req); }
+      catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
+      const { userId, cityId } = payload || {};
+      if (typeof userId !== "string" || typeof cityId !== "string") {
+        return json(res, 400, { error: "missing_fields" });
+      }
+      const { getUser, updateUserCoins } = await import("./userStore.js");
+      const user = await getUser(userId);
+      if (!user) return json(res, 404, { error: "user_not_found" });
+
+      // Reputation-gated cities.
+      const gates = [
+        { cityId: "dubai",   repThreshold: 75 },
+        { cityId: "newyork", repThreshold: 25 },
+      ];
+      const gate = gates.find((g) => g.cityId === cityId);
+      const userRep = (await import("./reputationService.js")).getReputation(userId, cityId);
+      if (gate && userRep < gate.repThreshold) {
+        return json(res, 403, {
+          error: "insufficient_reputation",
+          required: gate.repThreshold,
+          have: userRep,
+          hint: `Earn ${gate.repThreshold - userRep} more reputation in ${cityId} first.`,
+        });
+      }
+
+      // Price = base - discount(rep). Floor at minCoins.
+      const price = Math.max(5, 20 - Math.floor(userRep / 50) * 5);
+      const coins = typeof user.coins === "number" ? user.coins : 0;
+      if (coins < price) return json(res, 400, { error: "insufficient_coins", need: price, have: coins });
+
+      const newBalance = await updateUserCoins(userId, -price);
+      if (typeof newBalance !== "number") return json(res, 500, { error: "coins_update_failed" });
+
+      // Broadcast coin update.
+      const sockets = userSockets?.get?.(userId);
+      if (sockets && deps.io) for (const sid of sockets) deps.io.to(sid).emit("coinsUpdate", { coins: newBalance });
+
+      // Small arrival bonus: +3 rep in the destination (so a ticket means
+      // "I'm coming back" not "I paid to appear").
+      addReputation(userId, cityId, 3);
+
+      return json(res, 200, {
+        ok: true,
+        cityId,
+        roomId: `city_${cityId}`,
+        coinsSpent: price,
+        coins: newBalance,
+        reputationAtArrival: userRep + 3,
+      });
+    }
+
+    // Daily digest (Phase 9E) — snapshot of the last 24 h of teaching,
+    // quests, purchases, and ambient momentum. Used by a "What happened
+    // today?" card at login and as a demo talking-point surface.
+    if (req.method === "GET" && req.url?.startsWith("/api/v1/digest")) {
+      const u = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      const cityFilter = u.searchParams.get("city") || null;
+      const now = Date.now();
+      const since = now - 24 * 3600 * 1000;
+
+      // Pull from the conversation archive (7E.6) + world feed.
+      const { listConversations } = await import("./conversationLog.js");
+      const convos = listConversations({ city: cityFilter || undefined, limit: 200 })
+        .filter((e) => e.at >= since);
+      const { getFeed } = await import("./worldFeed.js");
+      const feed = getFeed(200).filter((e) => {
+        if (e.createdAt < since) return false;
+        if (cityFilter && e.cityId !== cityFilter) return false;
+        return true;
+      });
+
+      // Tag tallies + top residents taught.
+      const tagCounts = new Map();
+      const teacherCounts = new Map();
+      for (const c of convos) {
+        for (const t of c.tags || []) tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
+        if (c.toBotName) teacherCounts.set(c.toBotName, (teacherCounts.get(c.toBotName) || 0) + 1);
+      }
+      const topTags = [...tagCounts.entries()]
+        .map(([tag, count]) => ({ tag, count }))
+        .sort((a, b) => b.count - a.count).slice(0, 6);
+      const topTeachers = [...teacherCounts.entries()]
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count).slice(0, 6);
+
+      // Top leaderboards across the 7 cities (or one if filter set).
+      const { cityLeaderboard: lb } = await import("./reputationService.js");
+      const cityIds = cityFilter
+        ? [cityFilter]
+        : ["hyderabad", "dubai", "bengaluru", "mumbai", "newyork", "singapore", "sydney"];
+      const leaderboards = {};
+      for (const c of cityIds) leaderboards[c] = lb(c, 3);
+
+      return json(res, 200, {
+        windowHours: 24,
+        city: cityFilter,
+        totals: {
+          conversations: convos.length,
+          feedEntries:   feed.length,
+        },
+        topTags,
+        topTeachers,
+        leaderboards,
+        recent: feed.slice(0, 12),
+      });
+    }
+
+    // LLM status (Phase 8E) — powers the ⚡ badge + admin debugging
+    if (req.method === "GET" && req.url === "/api/v1/llm/status") {
+      const active = getActiveProvider();
+      return json(res, 200, {
+        active: { id: active.id, model: active.model, stub: active.id === "stub" },
+        providers: listProviders(),
+        memory: memoryStats(),
+        guards: guardStats(),
+      });
+    }
+
+    // Tier catalog (Phase 7H) — static list so clients can render the
+    // full ladder alongside the user's current tier.
+    if (req.method === "GET" && req.url === "/api/v1/tiers") {
+      const { TIERS } = await import("./shared/tierCatalog.js");
+      return json(res, 200, TIERS);
+    }
+
     // Public profile by userId (read-only, HTML-stripped, no tokens)
     const profileMatch = req.url?.match(/^\/api\/v1\/users\/([A-Za-z0-9_-]+)\/profile$/);
     if (req.method === "GET" && profileMatch) {
       const u = await getUser(profileMatch[1]);
       if (!u) return json(res, 404, { error: "user_not_found" });
-      return json(res, 200, publicProfile(u));
+      const profile = publicProfile(u);
+      // Phase 7H — derive the tier from stored XP so the ProfileCard can
+      // show "🪑 Regular · 65 XP to Local" without a second request.
+      try {
+        const { tierForXp } = await import("./shared/tierCatalog.js");
+        profile.tier = tierForXp(profile.stats?.xp || 0);
+      } catch {}
+      // Phase 9C — reputation by city (top 3) + tier hydration.
+      const repScores = getUserReputation(profileMatch[1]);
+      profile.reputation = repScores.slice(0, 5).map((r) => ({
+        ...r, tier: reputationTier(r.score),
+      }));
+      // Phase 9B — quest counts in stats.
+      const qc = questCounts(profileMatch[1]);
+      if (profile.stats) {
+        profile.stats.questsActive    = qc.active;
+        profile.stats.questsCompleted = qc.completed;
+      }
+      // Phase 7E.2 — residents carry expertise in the catalog (not the
+      // users.json record). Join it in for the ProfileCard to render.
+      const resident = getResident(profileMatch[1]);
+      if (resident && Array.isArray(resident.expertise)) {
+        profile.expertise = hydrateExpertiseTags(resident.expertise);
+        profile.role = resident.role || "host";
+        profile.homeVenueId = resident.homeVenueId;
+      }
+      // Phase 7E.3 — humans' personaTags hydrated against the same catalog
+      // so the client can render them identically to resident expertise.
+      if (Array.isArray(profile.personaTags) && profile.personaTags.length > 0) {
+        profile.personaTags = hydrateExpertiseTags(profile.personaTags);
+      }
+      return json(res, 200, profile);
     }
 
     // Update profile (self-serve; sessionToken must match the userId).
@@ -1202,6 +1478,155 @@ Want to build your own space? Each bot gets **one room** — here's how:
         }
       }
       return json(res, 200, { ok: true, token, coins: newBalance, food });
+    }
+
+    // ── Phase 7G: Bazaar (coins-only marketplace) ─────────────────────
+    if (req.method === "GET" && req.url?.startsWith("/api/v1/bazaar")) {
+      const u = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      const { allBazaarPublic, bazaarInCity, bazaarBySeller } = await import("./shared/bazaarCatalog.js");
+      const city = u.searchParams.get("city");
+      const seller = u.searchParams.get("seller");
+      if (city)   return json(res, 200, bazaarInCity(city));
+      if (seller) return json(res, 200, bazaarBySeller(seller));
+      return json(res, 200, allBazaarPublic());
+    }
+    if (req.method === "POST" && req.url === "/api/v1/bazaar/buy") {
+      let payload;
+      try { payload = await readBody(req); }
+      catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
+      const { userId, itemId } = payload || {};
+      if (typeof userId !== "string" || typeof itemId !== "string") {
+        return json(res, 400, { error: "missing_fields" });
+      }
+      const { getBazaarItem } = await import("./shared/bazaarCatalog.js");
+      const item = getBazaarItem(itemId);
+      if (!item) return json(res, 404, { error: "item_not_found" });
+      const { getUser, updateUserCoins, addToInventory } = await import("./userStore.js");
+      const user = await getUser(userId);
+      if (!user) return json(res, 404, { error: "user_not_found" });
+      const coins = typeof user.coins === "number" ? user.coins : 0;
+      if (coins < item.price) {
+        return json(res, 400, { error: "insufficient_coins", have: coins, need: item.price });
+      }
+      const newBalance = await updateUserCoins(userId, -item.price);
+      if (typeof newBalance !== "number") {
+        return json(res, 500, { error: "coins_update_failed" });
+      }
+      const token = {
+        id: crypto.randomUUID ? crypto.randomUUID() : `bz_${Date.now()}`,
+        itemId,
+        boughtAt: Date.now(),
+      };
+      const addResult = await addToInventory(userId, "bazaar", token);
+      if (!addResult || addResult.ok === false) {
+        await updateUserCoins(userId, item.price);
+        return json(res, 400, { error: (addResult && addResult.error) || "inventory_failed" });
+      }
+      const sockets = userSockets?.get?.(userId);
+      if (sockets && deps.io) {
+        for (const sid of sockets) deps.io.to(sid).emit("coinsUpdate", { coins: newBalance });
+      }
+      // Phase 7H — XP for both buyer and seller (residents grow too).
+      try {
+        const { awardXp } = await import("./userStore.js");
+        await awardXp(userId, "bazaar_buy");
+        if (item.sellerId) await awardXp(item.sellerId, "bazaar_buy");
+      } catch {}
+      // Phase 9B — quest progress (buy_item).
+      const questsBuy = await fireQuestEvent(userId, { type: "buy_item", target: item.id });
+      // Broadcast the purchase as a chat bubble above the seller so the
+      // moment reads as social, not transactional.
+      if (item.cityId && deps.io) {
+        const sellerRoom = getCachedRoom(`city_${item.cityId}`);
+        const sellerCh = sellerRoom?.characters?.find((c) => c.userId === item.sellerId);
+        if (sellerRoom && sellerCh) {
+          deps.io.to(sellerRoom.id).emit("playerChatMessage", {
+            id: sellerCh.id,
+            name: sellerCh.name,
+            message: `Shukran for the ${item.name}. Enjoy!`,
+          });
+        }
+      }
+      return json(res, 200, {
+        ok: true, token, coins: newBalance, item,
+        questsCompleted: (questsBuy || []).map((q) => ({ id: q.id, title: q.title, reward: q.reward })),
+      });
+    }
+
+    // ── Phase 7I: Barter bundles ──────────────────────────────────────
+    if (req.method === "GET" && req.url?.startsWith("/api/v1/barter")) {
+      const u = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      const { allBundlesPublic, bundlesInCity } = await import("./shared/barterCatalog.js");
+      const city = u.searchParams.get("city");
+      return json(res, 200, city ? bundlesInCity(city) : allBundlesPublic());
+    }
+    if (req.method === "POST" && req.url === "/api/v1/barter/trade") {
+      let payload;
+      try { payload = await readBody(req); }
+      catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
+      const { userId, bundleId } = payload || {};
+      if (typeof userId !== "string" || typeof bundleId !== "string") {
+        return json(res, 400, { error: "missing_fields" });
+      }
+      const { getBundle } = await import("./shared/barterCatalog.js");
+      const bundle = getBundle(bundleId);
+      if (!bundle) return json(res, 404, { error: "bundle_not_found" });
+
+      // Knowledge gate: user must have ≥1 archived Q&A tagged with requiresTag.
+      const { listConversations: listConvs } = await import("./conversationLog.js");
+      const proof = listConvs({ tag: bundle.requiresTag, user: userId, limit: 1 });
+      if (!proof || proof.length === 0) {
+        return json(res, 400, {
+          error: "missing_knowledge",
+          requiresTag: bundle.requiresTag,
+          hint: `Ask someone who knows ${bundle.requiresTag} first.`,
+        });
+      }
+
+      const { getUser, updateUserCoins, addToInventory } = await import("./userStore.js");
+      const user = await getUser(userId);
+      if (!user) return json(res, 404, { error: "user_not_found" });
+      const coins = typeof user.coins === "number" ? user.coins : 0;
+      if (coins < bundle.priceCoins) {
+        return json(res, 400, { error: "insufficient_coins", have: coins, need: bundle.priceCoins });
+      }
+
+      // Deduct coin cost, then refund the bonus + add bundle to inventory.
+      const afterDebit = await updateUserCoins(userId, -bundle.priceCoins);
+      if (typeof afterDebit !== "number") return json(res, 500, { error: "coins_update_failed" });
+      const afterBonus = await updateUserCoins(userId, bundle.gives?.coinBonus || 0);
+      const token = {
+        id: crypto.randomUUID ? crypto.randomUUID() : `br_${Date.now()}`,
+        bundleId,
+        items: bundle.gives?.items || [],
+        boughtAt: Date.now(),
+      };
+      const addResult = await addToInventory(userId, "bundles", token);
+      if (!addResult || addResult.ok === false) {
+        // Refund full amount on failure
+        await updateUserCoins(userId, bundle.priceCoins - (bundle.gives?.coinBonus || 0));
+        return json(res, 400, { error: (addResult && addResult.error) || "inventory_failed" });
+      }
+
+      // XP for both buyer and seller.
+      try {
+        const { awardXp } = await import("./userStore.js");
+        await awardXp(userId, "bazaar_buy", 3);
+        if (bundle.sellerId) await awardXp(bundle.sellerId, "teach");
+      } catch {}
+      // Phase 9B — trade_bundle quest event + small rep bump.
+      const questsTrade = await fireQuestEvent(userId, { type: "trade_bundle", target: bundle.id });
+      if (bundle.cityId) addReputation(userId, bundle.cityId, 5);
+
+      const sockets = userSockets?.get?.(userId);
+      if (sockets && deps.io) {
+        for (const sid of sockets) deps.io.to(sid).emit("coinsUpdate", { coins: afterBonus });
+      }
+      return json(res, 200, {
+        ok: true, token, coins: afterBonus, bundle,
+        refundBonus: bundle.gives?.coinBonus || 0,
+        questsCompleted: (questsTrade || []).map((q) => ({ id: q.id, title: q.title, reward: q.reward })),
+      });
     }
 
     // ── Phase 4: Bot reaction REST mirror ─────────────────────────────
@@ -1429,11 +1854,96 @@ Want to build your own space? Each bot gets **one room** — here's how:
       // the canned answer *immediately* so the demo UX feels conversational.
       // Returns early, no reply token needed.
       if (!hasLiveWebhook && venue) {
-        const match = matchCannedAnswer(venue, question);
+        // Phase 7E.4 — if the target is a regular resident with their own
+        // bank, try that first. Otherwise (host, or no personal bank) fall
+        // through to the venue's canned bank as before.
+        const residentHit = findResidentCharacter({ toBotId, getCachedRoom });
+
+        // Phase 8B — before falling to canned, try the LLM path for this
+        // resident. This lets the SAME code path produce real-LLM answers
+        // when an API key is configured, and fall back transparently.
+        if (residentHit?.resident?.id) {
+          const llm = await answerAsResident({
+            residentId: residentHit.resident.id,
+            userId:     fromUserId,
+            userName:   fromName,
+            venueId:    venue.id,
+            question,
+          });
+          if (llm.ok && llm.text) {
+            const emitId   = residentHit.character?.id || `venue:${venue.id}`;
+            const emitName = residentHit.resident.name;
+            if (deps.io) {
+              deps.io.to(roomId).emit("playerChatMessage", {
+                id: emitId, name: emitName,
+                message: `@${fromName || "friend"} — ${llm.text}`,
+              });
+            }
+            const { appendToUserList, incrementTeachingCount } = await import("./userStore.js");
+            const factId = crypto.randomUUID ? crypto.randomUUID() : `lf_${Date.now()}`;
+            const fact = {
+              id: factId,
+              question: question.slice(0, 500),
+              answer: llm.text,
+              fromBotId:     residentHit.resident.id,
+              fromBotName:   residentHit.resident.name,
+              fromVenueId:   venue.id,
+              fromVenueName: venue.name,
+              cityId: venue.cityId,
+              learnedAt: Date.now(),
+              channel: llm.stub ? "llm-stub" : `llm-${llm.provider || "unknown"}`,
+            };
+            await appendToUserList(fromUserId, "learnedFacts", fact, 200);
+            await incrementTeachingCount(residentHit.resident.id);
+            appendConversation({
+              fromUserId, fromName: fromName || "",
+              toBotId: residentHit.resident.id, toBotName: residentHit.resident.name,
+              venueId: venue.id, cityId: venue.cityId,
+              question, answer: llm.text,
+              channel: llm.stub ? "llm-stub" : `llm-${llm.provider || "unknown"}`,
+            });
+            try {
+              const { awardXp } = await import("./userStore.js");
+              await awardXp(fromUserId, "ask");
+              await awardXp(residentHit.resident.id, "teach");
+              // Phase 9C — small reputation nudge in the resident's city.
+              addReputation(fromUserId, venue.cityId, 2);
+            } catch {}
+            // Phase 9B — fire quest events: ask-by-tag (all expertise of
+            // the resident) + ask-by-resident.
+            const completedLlm = [];
+            for (const tag of residentHit.resident.expertise || []) {
+              const done = await fireQuestEvent(fromUserId, { type: "ask_tag", target: tag }, { fromName });
+              completedLlm.push(...done);
+            }
+            const doneRes = await fireQuestEvent(fromUserId, { type: "ask_resident", target: residentHit.resident.id }, { fromName });
+            completedLlm.push(...doneRes);
+
+            addToFeed({
+              type: "fact",
+              actorUserId: fromUserId, actorName: fromName || "",
+              cityId: venue.cityId,
+              text: `learned at ${venue.name}: ${llm.text.slice(0, 110)}${llm.text.length > 110 ? "…" : ""}`,
+              emoji: llm.stub ? "🤖" : "⚡",
+              meta: { venueId: venue.id, question, channel: "llm" },
+            });
+            return json(res, 200, {
+              ok: true, channel: llm.channel, stub: !!llm.stub,
+              venue: { id: venue.id, name: venue.name },
+              answer: llm.text, fact,
+              questsCompleted: completedLlm.map((q) => ({ id: q.id, title: q.title, reward: q.reward })),
+            });
+          }
+          // If LLM failed, fall through to canned — don't surface the reason.
+        }
+
+        const personalMatch = residentHit?.resident?.id
+          ? matchResidentCannedAnswer(residentHit.resident.id, question)
+          : null;
+        const match = personalMatch || matchCannedAnswer(venue, question);
         if (match) {
           // Prefer the in-world resident's character id so the bubble appears
           // above them; fall back to a synthetic venue:<id> if no resident.
-          const residentHit = findResidentCharacter({ toBotId, getCachedRoom });
           const emitId = residentHit?.character?.id || `venue:${venue.id}`;
           const emitName = residentHit?.resident?.name || venue.name;
           if (deps.io) {
@@ -1475,19 +1985,56 @@ Want to build your own space? Each bot gets **one room** — here's how:
             emoji: "🧠",
             meta: { venueId: venue.id, question },
           });
+          // Phase 7E.6 — append to the searchable archive. Uses the
+          // answering resident's id so tags pick up their expertise.
+          appendConversation({
+            fromUserId,
+            fromName: fromName || "",
+            toBotId: residentHit?.resident?.id || venue.host || venue.id,
+            toBotName: residentHit?.resident?.name || venue.name,
+            venueId: venue.id,
+            cityId: venue.cityId,
+            question,
+            answer: match.answer,
+            channel: "canned",
+          });
+          // Phase 7H — learner gets XP for asking; resident gets XP for teaching.
+          try {
+            const { awardXp } = await import("./userStore.js");
+            await awardXp(fromUserId, "ask");
+            if (residentHit?.resident?.id) await awardXp(residentHit.resident.id, "teach");
+            // Phase 9C — small reputation nudge on every ask-in-venue.
+            addReputation(fromUserId, venue.cityId, 2);
+          } catch {}
+          // Phase 9B — fire quest events (ask-by-tag for every resident
+          // expertise tag + ask-by-resident).
+          const completedCanned = [];
+          if (residentHit?.resident) {
+            for (const tag of residentHit.resident.expertise || []) {
+              const done = await fireQuestEvent(fromUserId, { type: "ask_tag", target: tag }, { fromName });
+              completedCanned.push(...done);
+            }
+            const doneRes = await fireQuestEvent(fromUserId, { type: "ask_resident", target: residentHit.resident.id }, { fromName });
+            completedCanned.push(...doneRes);
+          }
           return json(res, 200, {
             ok: true,
             channel: "canned",
             venue: { id: venue.id, name: venue.name },
             answer: match.answer,
             fact,
+            questsCompleted: completedCanned.map((q) => ({ id: q.id, title: q.title, reward: q.reward })),
           });
         }
       }
 
       // Normal flow: mint a token and route to the bot.
       const channel = hasLiveWebhook ? "both" : "polling";
-      const result = createQuestion({ fromUserId, fromName, toBotId: botKey || toBotId, question, roomId, channel });
+      const result = createQuestion({
+        fromUserId, fromName, toBotId: botKey || toBotId, question, roomId, channel,
+        venueId: venue?.id || null,
+        cityId:  venue?.cityId || null,
+      });
       if (!result.ok) return json(res, 400, result);
 
       if (hasLiveWebhook) {
@@ -1582,11 +2129,30 @@ Want to build your own space? Each bot gets **one room** — here's how:
         type: "fact",
         actorUserId: question.fromUserId,
         actorName: asker?.name || "",
-        cityId: null,
+        cityId: question.cityId || null,
         text: `learned from ${botName}: ${answerText.slice(0, 120)}${answerText.length > 120 ? "…" : ""}`,
         emoji: "🧠",
         meta: { factId, botId: question.toBotId, botName, question: question.question },
       });
+
+      // Phase 7E.6 — archive the Q&A so it's searchable by tag/venue/city.
+      appendConversation({
+        fromUserId: question.fromUserId,
+        fromName:   asker?.name || question.fromName || "",
+        toBotId:    question.toBotId,
+        toBotName:  botName,
+        venueId:    question.venueId || null,
+        cityId:     question.cityId  || null,
+        question:   question.question,
+        answer:     answerText,
+        channel:    "webhook",
+      });
+      // Phase 7H — XP for ask / teach on the webhook path too.
+      try {
+        const { awardXp } = await import("./userStore.js");
+        await awardXp(question.fromUserId, "ask");
+        await awardXp(question.toBotId,    "teach");
+      } catch {}
 
       return json(res, 200, { ok: true, fact });
     }

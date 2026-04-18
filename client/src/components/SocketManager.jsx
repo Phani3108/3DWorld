@@ -84,6 +84,17 @@ export const venuesInCityAtom = atom([]);
 // Phase 6: in-flight greeting pop ("Aadab sahab!") to render briefly on arrival
 export const greetingPopAtom = atom(null);
 
+// Phase 7E.1: hotspot the local player is currently standing at (inside
+// a venue), or null. Shape: { venueId, hotspot: { id, grid, kind, label, capacity } }
+export const currentHotspotAtom = atom(null);
+
+// Phase 7E.2: expertise vocabulary — fetched once, then reused everywhere.
+// Shape: { groups: {...}, tags: { [id]: { label, emoji, group } } }
+export const expertiseCatalogAtom = atom(null);
+
+// Phase 8E: LLM status — { active: {id, model, stub}, providers, ... } or null
+export const llmStatusAtom = atom(null);
+
 // Phase 7C.2: camera overview state (true = bird's-eye of whole city)
 export const cameraOverviewAtom = atom(false);
 
@@ -164,6 +175,9 @@ export const SocketManager = () => {
   const [, setLanguage] = useAtom(languageAtom);
   const [, setVenuesInCity] = useAtom(venuesInCityAtom);
   const [, setGreetingPop] = useAtom(greetingPopAtom);
+  const [, setCurrentHotspot] = useAtom(currentHotspotAtom);
+  const [expertiseCatalog, setExpertiseCatalog] = useAtom(expertiseCatalogAtom);
+  const [llmStatus, setLlmStatus] = useAtom(llmStatusAtom);
   const [_roomID, setRoomID] = useAtom(roomIDAtom);
   const [_agentThoughts, setAgentThoughts] = useAtom(agentThoughtsAtom);
   const [_activityEvents, setActivityEvents] = useAtom(activityEventsAtom);
@@ -223,6 +237,28 @@ export const SocketManager = () => {
       useGLTF.preload(`/models/items/${item.name}.glb`);
     });
   }, [items]);
+
+  // Phase 7E.2 — fetch the expertise catalog once on mount so every
+  // Avatar/ProfileCard can render emoji chips without extra round-trips.
+  useEffect(() => {
+    if (expertiseCatalog) return;
+    const url = (import.meta.env.VITE_SERVER_URL || "http://localhost:3000") + "/api/v1/expertise";
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setExpertiseCatalog(data); })
+      .catch(() => {});
+  }, [expertiseCatalog, setExpertiseCatalog]);
+
+  // Phase 8E — fetch LLM status once so the ⚡ badge can render in
+  // VenueInfoCard and AskAgentDialog without per-open round-trips.
+  useEffect(() => {
+    if (llmStatus) return;
+    const url = (import.meta.env.VITE_SERVER_URL || "http://localhost:3000") + "/api/v1/llm/status";
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setLlmStatus(data); })
+      .catch(() => {});
+  }, [llmStatus, setLlmStatus]);
   useEffect(() => {
     function onConnect() {
       console.log("connected");
@@ -783,6 +819,27 @@ export const SocketManager = () => {
     }
     function onVenueExit() {
       setCurrentVenue(null);
+      // Leaving a venue implicitly leaves any hotspot too.
+      setCurrentHotspot(null);
+    }
+
+    // Phase 7E.1: local player entered / exited a hotspot inside a venue.
+    function onHotspotEnter({ venueId, hotspot }) {
+      if (!venueId || !hotspot) return;
+      setCurrentHotspot({ venueId, hotspot });
+    }
+    function onHotspotExit() {
+      setCurrentHotspot(null);
+    }
+
+    // Phase 9B — quest completion toast (triggered by server-side tick
+    // from venue entry, ask, bazaar buy, etc. — the socket form is only
+    // sent for the venue-entry path; HTTP responses handle the others).
+    function onQuestsCompleted(list) {
+      if (!Array.isArray(list) || list.length === 0) return;
+      const titles = list.map((q) => q.title).join(" · ");
+      // Re-use the activity event atom so the existing toast renders it.
+      addActivity("quest", "You", false, `🎯 Completed: ${titles}`);
     }
 
     // Phase 7C.4: a character switched vehicle — update the characters atom
@@ -798,6 +855,9 @@ export const SocketManager = () => {
     socket.on("motivesUpdate", onMotivesUpdate);
     socket.on("venueEnter", onVenueEnter);
     socket.on("venueExit", onVenueExit);
+    socket.on("hotspotEnter", onHotspotEnter);
+    socket.on("hotspotExit", onHotspotExit);
+    socket.on("questsCompleted", onQuestsCompleted);
     socket.on("characterVehicleChange", onCharacterVehicleChange);
 
     socket.on("connect", onConnect);
@@ -845,6 +905,9 @@ export const SocketManager = () => {
       socket.off("motivesUpdate", onMotivesUpdate);
       socket.off("venueEnter", onVenueEnter);
       socket.off("venueExit", onVenueExit);
+      socket.off("hotspotEnter", onHotspotEnter);
+      socket.off("hotspotExit", onHotspotExit);
+      socket.off("questsCompleted", onQuestsCompleted);
       socket.off("characterVehicleChange", onCharacterVehicleChange);
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);

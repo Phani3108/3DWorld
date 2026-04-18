@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
 import { profileViewTargetAtom } from "./SocketManager";
-import { fetchProfile, fetchCity } from "../lib/api";
+import { fetchProfile, fetchCity, fetchUserConversations } from "../lib/api";
 import { AskAgentDialog } from "./AskAgentDialog";
 
 const SOCIAL_ICONS = {
@@ -22,11 +22,12 @@ export const ProfileCard = () => {
   const [targetId, setTargetId] = useAtom(profileViewTargetAtom);
   const [profile, setProfile] = useState(null);
   const [cityInfo, setCityInfo] = useState(null);
+  const [threads, setThreads] = useState([]); // Phase 7E.6
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!targetId) { setProfile(null); setCityInfo(null); setError(null); return; }
+    if (!targetId) { setProfile(null); setCityInfo(null); setThreads([]); setError(null); return; }
     setLoading(true);
     setError(null);
     fetchProfile(targetId)
@@ -38,6 +39,11 @@ export const ProfileCard = () => {
       })
       .catch((e) => setError(e.message || "Failed to load profile"))
       .finally(() => setLoading(false));
+    // Phase 7E.6 — load the archived Q&A threads this user has been in
+    // (either as asker or as the answering resident). Fire-and-forget.
+    fetchUserConversations(targetId, 8)
+      .then((list) => { if (Array.isArray(list)) setThreads(list); })
+      .catch(() => setThreads([]));
   }, [targetId]);
 
   useEffect(() => {
@@ -127,12 +133,103 @@ export const ProfileCard = () => {
                 )}
               </div>
 
+              {/* Phase 9C — Reputation chips (top cities) */}
+              {Array.isArray(profile.reputation) && profile.reputation.length > 0 && (
+                <div className="px-6 pb-2">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">
+                    🏅 Reputation
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {profile.reputation.map((r) => (
+                      <span
+                        key={r.cityId}
+                        className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-amber-400/30 bg-amber-500/10 text-amber-100"
+                        title={`${r.score} reputation in ${r.cityId}`}
+                      >
+                        <span>{r.tier?.emoji || "·"}</span>
+                        <span className="capitalize">{r.cityId}</span>
+                        <span className="text-amber-300/70">· {r.score}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Phase 7H — Tier + XP progress */}
+              {profile.tier && (
+                <div className="px-6 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+                      style={{
+                        color: profile.tier.tier.color,
+                        background: `${profile.tier.tier.color}22`,
+                        border: `1px solid ${profile.tier.tier.color}55`,
+                      }}
+                    >
+                      {profile.tier.tier.emoji} {profile.tier.tier.label}
+                    </span>
+                    <span className="text-[11px] text-gray-400">
+                      {profile.tier.xp} XP
+                      {profile.tier.next && (
+                        <>
+                          {" · "}
+                          <span className="text-gray-500">
+                            {profile.tier.toNext} to {profile.tier.next.label}
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  {profile.tier.next && (
+                    <div className="mt-1 h-1 rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(0, Math.min(100, 100 * (profile.tier.xp - profile.tier.tier.threshold) / (profile.tier.next.threshold - profile.tier.tier.threshold)))}%`,
+                          background: profile.tier.tier.color,
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Bio */}
               {profile.bio && (
                 <div className="px-6 pb-3 text-sm text-gray-300 leading-relaxed">
                   {profile.bio}
                 </div>
               )}
+
+              {/* Phase 7E.2/7E.3 — Expertise (residents) + persona tags
+                  (humans). Both hydrated to { id, label, emoji, group }. */}
+              {(() => {
+                const chips = Array.isArray(profile.expertise) && profile.expertise.length > 0
+                  ? profile.expertise
+                  : (Array.isArray(profile.personaTags) ? profile.personaTags : []);
+                if (chips.length === 0) return null;
+                const heading = profile.isBot ? "🎓 Expertise" : "🎓 Persona";
+                return (
+                  <div className="px-6 pb-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">
+                      {heading}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {chips.map((e) => (
+                        <span
+                          key={e.id}
+                          className="inline-flex items-center gap-1 text-[11px] bg-cyan-500/15 text-cyan-200 border border-cyan-400/30 px-2 py-0.5 rounded-full"
+                          title={e.group}
+                        >
+                          <span>{e.emoji}</span>
+                          <span>{e.label}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Stats */}
               <div className="px-6 py-3 border-t border-[#2a2a3e] grid grid-cols-4 gap-2 text-center">
@@ -176,6 +273,52 @@ export const ProfileCard = () => {
                         <span className="text-sky-400">{f.fromBotName || "someone"}</span>
                         <span className="text-gray-500">: </span>
                         {f.answer?.slice(0, 140)}{(f.answer?.length ?? 0) > 140 ? "…" : ""}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Phase 7E.6 — Recent conversation threads (search-indexed archive) */}
+              {threads.length > 0 && (
+                <div className="px-6 py-3 border-t border-[#2a2a3e]">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                      💬 Recent threads
+                    </div>
+                    <span className="text-[10px] text-gray-500">{threads.length}</span>
+                  </div>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {threads.map((t) => (
+                      <div key={t.id} className="text-xs leading-snug">
+                        <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                          <span className="text-sky-400">
+                            {t.toBotId === profile.id ? `asked by ${t.fromName || "someone"}` : `with ${t.toBotName || "someone"}`}
+                          </span>
+                          {t.venueName && (
+                            <span className="text-gray-600">· {t.venueName}</span>
+                          )}
+                        </div>
+                        <div className="text-gray-300 mt-0.5">
+                          <span className="text-gray-500">Q:</span> {t.question?.slice(0, 120)}
+                          {(t.question?.length ?? 0) > 120 ? "…" : ""}
+                        </div>
+                        <div className="text-gray-400">
+                          <span className="text-gray-500">A:</span> {t.answer?.slice(0, 140)}
+                          {(t.answer?.length ?? 0) > 140 ? "…" : ""}
+                        </div>
+                        {Array.isArray(t.tags) && t.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {t.tags.slice(0, 5).map((tag) => (
+                              <span
+                                key={tag}
+                                className="text-[9px] bg-cyan-500/10 text-cyan-300 border border-cyan-400/20 px-1.5 py-[1px] rounded-full"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

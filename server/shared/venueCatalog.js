@@ -12,6 +12,7 @@
  */
 
 import { getLayout } from "./venueLayouts.js";
+import { getHotspots } from "./venueHotspots.js";
 
 export const VENUES = {
   // ═══════ HYDERABAD ═══════════════════════════════════════════════
@@ -988,6 +989,116 @@ export const VENUES = {
       ],
     },
   },
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Phase 7D — tourist venues. No host, no menu, no canned Q&A.
+  // Pure atmosphere: props, hotspots, blurb. You walk through them.
+  // ═══════════════════════════════════════════════════════════════════
+  hyd_charminar_bazaar: {
+    id: "hyd_charminar_bazaar", cityId: "hyderabad", type: "landmark",
+    name: "Charminar Bazaar",
+    emoji: "🕌",
+    blurb: "Four-minaret heart of the old city. Pearls, lac bangles, chai on every corner.",
+    footprint: { x: 38, z: 30, w: 8, d: 8 }, radius: 6,
+    ambience: { crossfadeMs: 2500, cityVolumeDuck: 0.3, indoor: false },
+    information: {
+      funFacts: [
+        "Built in 1591 by Muhammad Quli Qutb Shah to mark the end of a plague.",
+        "The surrounding bazaar is India's largest pearl market.",
+        "Four minarets = four caliphs of Islam, each 48.7 m tall.",
+      ],
+    },
+  },
+  mum_marine_drive_walk: {
+    id: "mum_marine_drive_walk", cityId: "mumbai", type: "landmark",
+    name: "Marine Drive",
+    emoji: "🌊",
+    blurb: "Queen's Necklace at dusk. Joggers, lovers, bhel vendors, the Arabian Sea.",
+    footprint: { x: 40, z: 10, w: 10, d: 4 }, radius: 5,
+    ambience: { crossfadeMs: 2500, cityVolumeDuck: 0.3, indoor: false },
+    information: {
+      funFacts: [
+        "Built on reclaimed land in the 1920s. 3.6 km curve along the Arabian Sea.",
+        "The street-lamps glow amber at night — hence 'Queen's Necklace'.",
+        "Art Deco facades on the east side are UNESCO-listed (2018).",
+      ],
+    },
+  },
+  blr_cubbon_park: {
+    id: "blr_cubbon_park", cityId: "bengaluru", type: "park",
+    name: "Cubbon Park",
+    emoji: "🌳",
+    blurb: "300 acres of green in the middle of the city. Sunday is for cyclists.",
+    footprint: { x: 12, z: 12, w: 8, d: 8 }, radius: 6,
+    ambience: { crossfadeMs: 2500, cityVolumeDuck: 0.3, indoor: false },
+    information: {
+      funFacts: [
+        "Named after Mark Cubbon, 1870. 300 acres of gulmohar, bamboo, and eucalyptus.",
+        "Every Sunday the main road closes for cyclists and skaters.",
+        "Home to 6,000+ trees and Bangalore's oldest library.",
+      ],
+    },
+  },
+  dxb_marina_promenade: {
+    id: "dxb_marina_promenade", cityId: "dubai", type: "landmark",
+    name: "Marina Promenade",
+    emoji: "🚤",
+    blurb: "7 km of glass towers, yachts, and pastel sunsets. Designed to awe.",
+    footprint: { x: 30, z: 10, w: 10, d: 5 }, radius: 5,
+    ambience: { crossfadeMs: 2500, cityVolumeDuck: 0.3, indoor: false },
+    information: {
+      funFacts: [
+        "The Marina is the world's largest man-made harbour — entirely excavated.",
+        "Average tower height: 180 m. Cayan Tower twists 90° over its length.",
+        "A full lap of the promenade: 7 km · pedestrians and e-scooters only.",
+      ],
+    },
+  },
+  nyc_times_square: {
+    id: "nyc_times_square", cityId: "newyork", type: "landmark",
+    name: "Times Square",
+    emoji: "🗽",
+    blurb: "An LED-drenched crossroads at the center of the capitalist imagination.",
+    footprint: { x: 10, z: 30, w: 8, d: 8 }, radius: 6,
+    ambience: { crossfadeMs: 2500, cityVolumeDuck: 0.3, indoor: false },
+    information: {
+      funFacts: [
+        "330,000 pedestrians pass through daily — one of the planet's busiest intersections.",
+        "Originally 'Longacre Square'; renamed in 1904 when the NY Times moved in.",
+        "The New Year's ball has dropped since 1907. Currently LED-lit Waterford crystal.",
+      ],
+    },
+  },
+  sg_gardens_by_the_bay: {
+    id: "sg_gardens_by_the_bay", cityId: "singapore", type: "park",
+    name: "Gardens by the Bay",
+    emoji: "🌿",
+    blurb: "Supertrees + domed conservatories. Engineering that pretends to be a jungle.",
+    footprint: { x: 40, z: 35, w: 8, d: 8 }, radius: 6,
+    ambience: { crossfadeMs: 2500, cityVolumeDuck: 0.3, indoor: false },
+    information: {
+      funFacts: [
+        "18 Supertrees, each 25-50 m tall; some are solar, all support vertical gardens.",
+        "The Cloud Forest dome houses the world's tallest indoor waterfall (35 m).",
+        "Opened 2012. Cost S$1.035 billion — about $12 per visit today, net positive since year 5.",
+      ],
+    },
+  },
+  syd_opera_forecourt: {
+    id: "syd_opera_forecourt", cityId: "sydney", type: "landmark",
+    name: "Opera House Forecourt",
+    emoji: "🎭",
+    blurb: "Harbour, shell roofs, a million photos a year. Sit on the steps with a flat white.",
+    footprint: { x: 34, z: 12, w: 8, d: 6 }, radius: 5,
+    ambience: { crossfadeMs: 2500, cityVolumeDuck: 0.3, indoor: false },
+    information: {
+      funFacts: [
+        "Jørn Utzon's design won an international competition in 1957. Opened 1973.",
+        "1,056,006 roof tiles, each individually cut for curvature.",
+        "UNESCO World Heritage Site (2007). One of the most-photographed buildings alive.",
+      ],
+    },
+  },
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -1007,7 +1118,8 @@ export const publicVenue = (venue) => {
   return {
     ...rest,
     conversation: publicConv,
-    layout: getLayout(venue.id),   // Phase 7C.1: props placed inside the venue
+    layout:   getLayout(venue.id),   // Phase 7C.1: props placed inside the venue
+    hotspots: getHotspots(venue.id), // Phase 7E.1: labelled affordance points
   };
 };
 

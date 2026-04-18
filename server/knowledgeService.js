@@ -50,7 +50,7 @@ setInterval(sweepExpired, 60 * 1000).unref?.();
  * the webhook (we only record the decision).
  * @param {{ fromUserId: string, fromName?: string, toBotId: string, question: string, roomId: string, channel: "webhook"|"polling"|"both" }} payload
  */
-export const createQuestion = ({ fromUserId, fromName, toBotId, question, roomId, channel }) => {
+export const createQuestion = ({ fromUserId, fromName, toBotId, question, roomId, channel, venueId, cityId }) => {
   if (!fromUserId || !toBotId || !question || !roomId) {
     return { ok: false, error: "missing_fields" };
   }
@@ -66,6 +66,10 @@ export const createQuestion = ({ fromUserId, fromName, toBotId, question, roomId
     roomId,
     createdAt: now(),
     channel,
+    // Phase 7E.6 — carried forward so the answer endpoint can archive
+    // with accurate context even when the bot responds minutes later.
+    venueId: venueId || null,
+    cityId:  cityId  || null,
   };
   pending.set(token, entry);
 
