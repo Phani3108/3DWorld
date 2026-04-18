@@ -64,17 +64,17 @@ const CreditBadge = ({ isMobile }) => {
   const [open, setOpen] = useState(false);
   if (isMobile) {
     return (
-      <div className="fixed bottom-2 left-2 z-10 pointer-events-auto">
+      <div className="fixed bottom-[72px] left-3 z-[11] pointer-events-auto">
         {open ? (
           <div
-            className="bg-black/60 backdrop-blur-sm rounded px-2 py-1 flex items-center gap-1.5"
+            className="bg-black/50 backdrop-blur-sm rounded px-2 py-0.5 flex items-center gap-1.5"
             onClick={() => setOpen(false)}
           >
             <a
               href="https://linkedin.com/in/Phani-marupaka"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[8px] text-white/60 hover:text-white/90 transition-colors"
+              className="text-[8px] text-blue-300 hover:text-blue-200 transition-colors"
               onClick={(e) => e.stopPropagation()}
             >
               Created &amp; Developed by Phani Marupaka
@@ -83,7 +83,7 @@ const CreditBadge = ({ isMobile }) => {
         ) : (
           <button
             onClick={() => setOpen(true)}
-            className="text-[10px] text-white/30 hover:text-white/60 transition-colors bg-black/40 rounded-full w-5 h-5 flex items-center justify-center"
+            className="text-[8px] text-blue-400/60 hover:text-blue-300 transition-colors"
             title="Credits"
           >
             CC
@@ -93,12 +93,12 @@ const CreditBadge = ({ isMobile }) => {
     );
   }
   return (
-    <div className="fixed bottom-1 left-1 z-10 pointer-events-auto">
+    <div className="fixed bottom-[68px] left-5 z-[11] pointer-events-auto">
       <a
         href="https://linkedin.com/in/Phani-marupaka"
         target="_blank"
         rel="noopener noreferrer"
-        className="text-[7px] text-white/30 hover:text-white/60 transition-colors"
+        className="text-[9px] text-blue-800 hover:text-blue-600 transition-colors"
       >
         Created &amp; Developed by Phani Marupaka
       </a>
