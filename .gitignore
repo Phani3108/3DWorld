@@ -10,3 +10,8 @@ server/world_feed.json
 server/city_greeter_state.json
 server/memories/
 server/worldFeed.json
+# Phase 7/8/9 runtime state
+server/conversationLog.json
+server/llmMemory.json
+server/userQuests.json
+server/reputation.json
