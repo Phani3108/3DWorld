@@ -1,3 +1,5 @@
+import { dicebearUrl, RESIDENT_STYLE } from "./avatarDefaults.js";
+
 /**
  * Resident catalog — 14 named agents seeded at server boot.
  *
@@ -463,12 +465,12 @@ export const publicResident = (r) => {
     routine: r.routine,
     role: r.role || "host",                 // Phase 7E.2
     expertise: Array.isArray(r.expertise) ? r.expertise : [],
-    // Phase 10F — convention-based photo URL. The client's photo
-    // billboard fetches this lazily and silently hides on 404, so
-    // residents without a generated portrait keep working. Drop a
-    // {residentId}.webp into client/public/avatars/residents/ to
-    // enable the billboard for that resident.
-    avatarPhotoUrl: `/avatars/residents/${r.id}.webp`,
+    // Phase 10F + 11A — every resident gets a deterministic DiceBear
+    // personas portrait by default (free, hosted, zero asset commits).
+    // If a curated `/avatars/residents/{id}.webp` is later dropped in,
+    // the resident catalog can override this URL on a per-resident
+    // basis without touching the rendering pipeline.
+    avatarPhotoUrl: dicebearUrl(r.id, RESIDENT_STYLE),
   };
 };
 

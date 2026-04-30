@@ -1384,6 +1384,34 @@ Want to build your own space? Each bot gets **one room** — here's how:
       });
     }
 
+    // Phase 11E — world-state debug endpoint. Surfaces what's actually
+    // in the room cache for each city (segments, pitstops, landmarks,
+    // schemaVersion) so anyone can curl + verify state without
+    // guessing whether a deploy actually picked up.
+    if (req.method === "GET" && req.url === "/api/v1/debug/world-state") {
+      const cityIds = ["hyderabad", "dubai", "bengaluru", "mumbai", "newyork", "singapore", "sydney"];
+      const cities = cityIds.map((cityId) => {
+        const room = getCachedRoom(`city_${cityId}`);
+        if (!room) return { cityId, present: false };
+        return {
+          cityId,
+          present: true,
+          schemaVersion: room.schemaVersion || 1,
+          segments:  room.roads?.segments?.length || 0,
+          intersections: room.roads?.intersections?.length || 0,
+          pitstops:  Array.isArray(room.pitstops)  ? room.pitstops.length  : 0,
+          landmarks: Array.isArray(room.landmarks) ? room.landmarks.length : 0,
+          characters: Array.isArray(room.characters) ? room.characters.length : 0,
+        };
+      });
+      return json(res, 200, {
+        // eslint-disable-next-line no-undef
+        nodeVersion: process.versions?.node || null,
+        uptimeSec: Math.round(process.uptime?.() || 0),
+        cities,
+      });
+    }
+
     // LLM status (Phase 8E) — powers the ⚡ badge + admin debugging
     if (req.method === "GET" && req.url === "/api/v1/llm/status") {
       const active = getActiveProvider();

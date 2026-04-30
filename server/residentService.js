@@ -12,6 +12,7 @@
 
 import crypto from "crypto";
 import { RESIDENTS, listResidentIds, getResident } from "./shared/residentCatalog.js";
+import { dicebearUrl, RESIDENT_STYLE } from "./shared/avatarDefaults.js";
 import { getVenue } from "./shared/venueCatalog.js";
 import { pickRandomScene, listVenuesWithDialogues } from "./shared/ambientDialogues.js";
 
@@ -147,7 +148,7 @@ export const spawnResidents = async ({
       existing.isResident = true;
       existing.role = r.role || "host";
       existing.expertise = Array.isArray(r.expertise) ? r.expertise.slice() : [];
-      existing.avatarPhotoUrl = `/avatars/residents/${r.id}.webp`;
+      existing.avatarPhotoUrl = dicebearUrl(r.id, RESIDENT_STYLE);
       skipped++;
       continue;
     }
@@ -190,10 +191,8 @@ export const spawnResidents = async ({
       // round-trip to /api/v1/residents.
       role: r.role || "host",
       expertise: Array.isArray(r.expertise) ? r.expertise.slice() : [],
-      // Phase 10F — convention-based photo URL. Same path the public
-      // resident projection uses; client renders a circular billboard
-      // above the rigged avatar when the file exists.
-      avatarPhotoUrl: `/avatars/residents/${r.id}.webp`,
+      // Phase 10F + 11A — DiceBear personas portrait by default.
+      avatarPhotoUrl: dicebearUrl(r.id, RESIDENT_STYLE),
     };
     room.characters.push(character);
 

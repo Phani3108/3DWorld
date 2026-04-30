@@ -6,6 +6,7 @@ import * as db from "./db.js";
 import { sanitizeAvatarUrl, sanitizeAccentId, DEFAULT_ACCENT_ID, getAvatarById, AVATAR_CATALOG } from "./itemCatalog.js";
 import { getCity } from "./shared/cityCatalog.js";
 import { atomicWriteJson, pushCapped } from "./persistence.js";
+import { dicebearUrl } from "./shared/avatarDefaults.js";
 
 const {
   isDbAvailable,
@@ -79,11 +80,14 @@ const ensureProfileDefaults = (user) => {
   if (!Array.isArray(user.personaTags)) user.personaTags = [];
   // Phase 7H — cumulative XP (tier derived at projection time).
   if (user.xp === undefined) user.xp = 0;
-  // Phase 10F — opt-in flag to use the AI-portrait billboard instead
-  // of the cartoon GLB. Resident records carry this implicitly via the
-  // residentService spawn (always-on); humans toggle it themselves.
-  if (user.usePhotoAvatar === undefined) user.usePhotoAvatar = false;
-  if (user.avatarPhotoUrl === undefined) user.avatarPhotoUrl = null;
+  // Phase 10F + 11A — every user gets an AI-portrait by default. The
+  // billboard becomes the visible body; the cartoon GLB only renders
+  // when the user explicitly opts out. DiceBear personas is a free
+  // hosted SVG service — see server/shared/avatarDefaults.js.
+  if (user.usePhotoAvatar === undefined) user.usePhotoAvatar = true;
+  if (user.avatarPhotoUrl === undefined || user.avatarPhotoUrl === null) {
+    user.avatarPhotoUrl = dicebearUrl(user.id || `anon_${Date.now()}`);
+  }
   return user;
 };
 

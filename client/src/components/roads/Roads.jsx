@@ -31,12 +31,16 @@ import { TrafficSignal } from "./TrafficSignal";
  * All meshes are non-raycastable so click-to-move still hits the ground.
  */
 
+// Phase 11B — dark high-contrast palette so roads read against every
+// city ground (Hyderabad amber, Singapore pale, NYC grey, Sydney sand).
+// "Night-pavement" feel — deliberate, since the previous mid-grey was
+// invisible on dark grounds and washed out on light ones.
 const COLORS = {
-  asphalt:    "#1f1f24",
-  laneStripe: "#f5d058",
-  bike:       "#3a7a4f",
-  sidewalk:   "#cdc6b6",
-  crosswalk:  "#f6f6f6",
+  asphalt:    "#0e0e10",
+  laneStripe: "#fff8b0",
+  bike:       "#1f5630",
+  sidewalk:   "#dcd4be",
+  crosswalk:  "#ffffff",
 };
 
 const Y = {
@@ -117,7 +121,7 @@ const CentreStripe = React.memo(function CentreStripe({ seg, div }) {
             renderOrder={4}
           >
             <planeGeometry args={[dimX, dimZ]} />
-            <meshStandardMaterial color={COLORS.laneStripe} roughness={0.7} emissive={COLORS.laneStripe} emissiveIntensity={0.12} />
+            <meshStandardMaterial color={COLORS.laneStripe} roughness={0.55} emissive={COLORS.laneStripe} emissiveIntensity={0.45} />
           </mesh>
         );
       })}

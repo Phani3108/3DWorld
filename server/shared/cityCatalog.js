@@ -8,6 +8,21 @@
 
 import { roadsFor } from "./roadNetwork.js";
 
+/**
+ * Phase 11C — bump this whenever a city-room field changes shape.
+ * `seedCityRooms` (in server/index.js) detects mismatches between the
+ * cached room's `schemaVersion` and this constant, and FULLY REPLACES
+ * the room (not just patches fields). That dodges any case where a
+ * persisted rooms.json from a prior phase holds stale data on the
+ * deployed server.
+ *
+ * History:
+ *   v1 — pre-Phase 10
+ *   v2 — Phase 10A roads, 10C ambient buildings, 10D pitstops
+ *   v3 — Phase 11C explicit version bump (no shape change; forces re-seed)
+ */
+export const ROOM_SCHEMA_VERSION = 3;
+
 export const CITIES = {
   hyderabad: {
     id: "hyderabad",

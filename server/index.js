@@ -4,7 +4,7 @@ import pathfinding from "pathfinding";
 import bcrypt from "bcrypt";
 import { Server } from "socket.io";
 import { ROOM_ZONES, scaleZoneArea } from "./shared/roomConstants.js";
-import { CITIES, listCityIds, publicCity } from "./shared/cityCatalog.js";
+import { CITIES, listCityIds, publicCity, ROOM_SCHEMA_VERSION } from "./shared/cityCatalog.js";
 import { roadsFor } from "./shared/roadNetwork.js";
 import { pitstopsInCity } from "./shared/pitstopCatalog.js";
 import { initDb, isDbAvailable, listRooms as dbListRooms, countRooms as dbCountRooms, getNextApartmentNumber as dbGetNextApartmentNumber } from "./db.js";
@@ -297,14 +297,19 @@ const loadRoomsFromFile = async () => {
  * No-op if the cache already has the room (idempotent across restarts).
  */
 const seedCityRooms = () => {
+  let upgraded = 0;
+  let created = 0;
+  let totalSegments = 0;
+  let totalPitstops = 0;
   for (const cityId of listCityIds()) {
     const roomId = `city_${cityId}`;
     const city = CITIES[cityId];
-    // Phase 10A/10D — UPGRADE existing cached rooms with new fields
-    // (roads, pitstops, refreshed landmarks) so previously-persisted
-    // rooms.json files don't pin clients to pre-Phase-10 maps.
     const existing = getCachedRoom(roomId);
-    if (existing) {
+    // Phase 11C — schema-versioned upgrade. Existing rooms either:
+    //   • match the current schemaVersion → patch in fresh field values
+    //     (catalogs may have moved on);
+    //   • mismatch → fall through to the full-rebuild path.
+    if (existing && existing.schemaVersion === ROOM_SCHEMA_VERSION) {
       existing.landmarks = city.landmarks;
       existing.roads     = roadsFor(cityId);
       existing.pitstops  = pitstopsInCity(cityId);
@@ -313,7 +318,15 @@ const seedCityRooms = () => {
         ambient: city.ambient,
         skybox: city.skybox,
       };
+      existing.schemaVersion = ROOM_SCHEMA_VERSION;
+      upgraded++;
+      totalSegments += existing.roads?.segments?.length || 0;
+      totalPitstops += existing.pitstops?.length || 0;
       continue;
+    }
+    if (existing) {
+      // Schema mismatch — log + fall through to a fresh build.
+      console.log(`[seedCityRooms] city_${cityId} schema v${existing.schemaVersion || 1} → v${ROOM_SCHEMA_VERSION}, rebuilding`);
     }
     const room = {
       id: roomId,
@@ -340,12 +353,22 @@ const seedCityRooms = () => {
       emoji: city.emoji,
       menu: city.menu,
       greeterBot: city.greeterBot,
+      // Phase 11C — schema version. Bumping the export in cityCatalog
+      // forces every cached room to be rebuilt on next boot.
+      schemaVersion: ROOM_SCHEMA_VERSION,
     };
     room.grid = new pathfinding.Grid(room.size[0] * room.gridDivision, room.size[1] * room.gridDivision);
     updateGrid(room);
     setCachedRoom(room);
+    created++;
+    totalSegments += room.roads?.segments?.length || 0;
+    totalPitstops += room.pitstops?.length || 0;
   }
-  console.log(`Seeded ${listCityIds().length} city rooms`);
+  // Phase 11E — boot telemetry so deployment logs show what landed.
+  console.log(
+    `[seedCityRooms] schema v${ROOM_SCHEMA_VERSION}: ${created} created, ${upgraded} upgraded · ` +
+    `${totalSegments} road segments · ${totalPitstops} pitstops`
+  );
 };
 
 await loadRooms();

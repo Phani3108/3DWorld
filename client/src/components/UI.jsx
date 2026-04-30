@@ -44,6 +44,7 @@ import BazaarPanel, { bazaarOpenAtom } from "./BazaarPanel";
 import LibraryPanel, { libraryOpenAtom } from "./LibraryPanel";
 import QuestsPanel, { questsOpenAtom } from "./QuestsPanel";
 import TravelPanel, { travelOpenAtom } from "./TravelPanel";
+import CityInfoCard, { cityInfoOpenAtom } from "./CityInfoCard";
 import soundManager from "../audio/SoundManager";
 import { isMobileAtom } from "../hooks/useMobile";
 
@@ -1416,6 +1417,7 @@ export const UI = () => {
   const [, setLibraryOpen] = useAtom(libraryOpenAtom); // Phase 7J
   const [, setQuestsOpen] = useAtom(questsOpenAtom);   // Phase 9B
   const [, setTravelOpen] = useAtom(travelOpenAtom);   // Phase 9D
+  const [, setCityInfoOpen] = useAtom(cityInfoOpenAtom); // Phase 11D
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const [storyComposerOpen, setStoryComposerOpen] = useState(false);
   const [vehiclePickerOpen, setVehiclePickerOpen] = useState(false);
@@ -1946,6 +1948,21 @@ export const UI = () => {
                   </button>
                 )}
 
+                {/* Phase 11D — City info launcher (closes Phase 10J) */}
+                {roomID && (
+                  <button
+                    className="hidden sm:flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-amber-50 transition-colors group shrink-0"
+                    onClick={() => {
+                      soundManager.play("button_click");
+                      setCityInfoOpen((v) => !v);
+                    }}
+                    title="City info — leaderboard, digest, music"
+                  >
+                    <span className="text-xl sm:text-2xl leading-none">📊</span>
+                    <span className="text-[10px] sm:text-xs text-amber-600 group-hover:text-amber-800 font-medium transition-colors">City</span>
+                  </button>
+                )}
+
                 {/* Overview toggle (Phase 7C.2) — hidden on mobile, in overflow */}
                 {roomID && (
                   <button
@@ -2046,6 +2063,7 @@ export const UI = () => {
                                 { emoji: "📚", label: "Library", action: () => setLibraryOpen((v) => !v) },
                                 { emoji: "🎯", label: "Quests", action: () => setQuestsOpen((v) => !v) },
                                 { emoji: "✈️", label: "Travel", action: () => setTravelOpen((v) => !v) },
+                                { emoji: "📊", label: "City", action: () => setCityInfoOpen((v) => !v) },
                                 { emoji: cameraOverview ? "📍" : "🗺️", label: cameraOverview ? "Close" : "Overview", action: () => setCameraOverview((v) => !v) },
                                 { emoji: "🛺", label: "Ride", action: () => setVehiclePickerOpen((v) => !v) },
                                 { emoji: "📌", label: "Story", action: () => setStoryComposerOpen(true) },

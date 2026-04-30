@@ -27,6 +27,7 @@ import LibraryPanel from "./components/LibraryPanel";
 import QuestsPanel from "./components/QuestsPanel";
 import TravelPanel from "./components/TravelPanel";
 import { ETAChip } from "./components/ETAChip";
+import CityInfoCard from "./components/CityInfoCard";
 import VenueInfoCard from "./components/VenueInfoCard";
 import LanguageBadge from "./components/LanguageBadge";
 import { HelpSheet } from "./components/HelpSheet";
@@ -237,6 +238,7 @@ function App() {
       {loaded && <QuestsPanel />}
       {loaded && <TravelPanel />}
       {loaded && <ETAChip />}
+      {loaded && <CityInfoCard />}
       {loaded && <VenueInfoCard />}
       {loaded && <LanguageBadge />}
       {loaded && <HelpSheet />}

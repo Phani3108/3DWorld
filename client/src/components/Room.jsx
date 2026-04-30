@@ -181,6 +181,23 @@ export const Room = () => {
   const isCity = !!map?.isCity;
   const cityGround = map?.theme?.palette?.ground || null;
 
+  // Phase 11E — boot-time telemetry for the city render. Logged once
+  // per cityId change so the browser console reveals exactly what
+  // payload the client is rendering. Helps diagnose "I don't see roads"
+  // bugs by confirming server data made it across the wire.
+  useEffect(() => {
+    if (!map?.cityId) return;
+    const segs = map?.roads?.segments?.length || 0;
+    const ints = map?.roads?.intersections?.length || 0;
+    const ps   = Array.isArray(map?.pitstops) ? map.pitstops.length : 0;
+    const lms  = Array.isArray(map?.landmarks) ? map.landmarks.length : 0;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[Room] city=${map.cityId} gridDivision=${map.gridDivision || 2} ` +
+      `roads=${segs}/${ints} pitstops=${ps} landmarks=${lms}`,
+    );
+  }, [map?.cityId]);
+
   // Track pointer position to distinguish taps from drags (mobile camera rotation)
   const pointerDownPos = useRef(null);
   const TAP_THRESHOLD = 12; // px — movement below this is treated as a tap
