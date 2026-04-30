@@ -103,6 +103,41 @@ export const WelcomeModal = ({ onChoice }) => {
   const [accentId, setAccentId] = useState(localStorage.getItem("3dworld_accent") || "sky");
   const [profile, setProfile] = useState({ pronouns: "", bio: "", homeCity: null, socials: {} });
   const [personaTags, setPersonaTags] = useState([]); // Phase 7E.3
+  // Phase 10F — AI portrait mode (replaces the cartoon GLB with a tall
+  // photo billboard).
+  const [usePhotoAvatar, setUsePhotoAvatar] = useState(false);
+  const [avatarPhotoUrl, setAvatarPhotoUrl] = useState("");
+  // Phase 10F — downsize the chosen photo to max 512×512, JPEG q0.78,
+  // BEFORE we turn it into a data URL. Output stays well under the
+  // 200 KB threshold so it round-trips through the 1 MB profile body
+  // limit and persists nicely in users.json.
+  const onPhotoFile = (file) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    if (file.size > 6 * 1024 * 1024) { // raw upload guard (some phones export huge JPEGs)
+      alert("Pick a smaller photo (raw < 6 MB).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 512;
+        const r = Math.min(1, MAX / Math.max(img.width, img.height));
+        const w = Math.round(img.width * r);
+        const h = Math.round(img.height * r);
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
+        setAvatarPhotoUrl(dataUrl);
+        setUsePhotoAvatar(true);
+      };
+      img.onerror = () => alert("Couldn't read that image — try a JPG / PNG / WebP.");
+      img.src = String(reader.result || "");
+    };
+    reader.readAsDataURL(file);
+  };
   const [activeTab, setActiveTab] = useState("3dhub");
   const [agentTab, setAgentTab] = useState("3dhub");
   const [copied, setCopied] = useState(null);
@@ -145,6 +180,10 @@ export const WelcomeModal = ({ onChoice }) => {
       homeCity: profilePatch.homeCity || null,
       socials: profilePatch.socials || {},
       personaTags, // Phase 7E.3
+      // Phase 10F — opt-in flag + uploaded photo (data URL); server
+      // will round-trip them into users.json and the joinRoom payload.
+      usePhotoAvatar,
+      avatarPhotoUrl: avatarPhotoUrl || undefined,
     });
   };
 
@@ -427,6 +466,54 @@ export const WelcomeModal = ({ onChoice }) => {
             </p>
 
             <ProfileForm value={profile} onChange={setProfile} />
+
+            {/* Phase 10F — AI portrait upload + opt-in toggle. Replaces
+                the cartoon GLB body with a tall photo billboard in-world. */}
+            <div className="mt-4 pt-4 border-t border-[#2a2a3e]">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
+                🎭 AI portrait avatar
+              </div>
+              <p className="text-[11px] text-gray-500 mb-2">
+                Upload a portrait to be represented as that image in-world (humans, animals, characters all work).
+                Falls back to your cartoon avatar if you skip this.
+              </p>
+              <div className="flex items-center gap-3">
+                {avatarPhotoUrl ? (
+                  <img
+                    src={avatarPhotoUrl}
+                    alt="portrait preview"
+                    style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover", border: "2px solid #fbbf24" }}
+                  />
+                ) : (
+                  <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#1f2937", border: "2px dashed #475569", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+                    🎭
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <label className="inline-block text-[11px] font-semibold bg-amber-500/20 hover:bg-amber-500/35 text-amber-200 border border-amber-400/40 px-3 py-1.5 rounded-full cursor-pointer">
+                    {avatarPhotoUrl ? "Pick another" : "Upload a portrait"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) => onPhotoFile(e.target.files?.[0])}
+                      style={{ display: "none" }}
+                    />
+                  </label>
+                  {avatarPhotoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => { setAvatarPhotoUrl(""); setUsePhotoAvatar(false); }}
+                      className="ml-2 text-[10px] text-gray-400 hover:text-rose-400"
+                    >
+                      remove
+                    </button>
+                  )}
+                  <div className="text-[10px] text-gray-500 mt-1">
+                    JPG / PNG / WebP, &lt; 1 MB. Stored on your browser + sent with profile.
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <PersonaTagPicker value={personaTags} onChange={setPersonaTags} />
 

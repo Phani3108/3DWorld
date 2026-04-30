@@ -11,6 +11,7 @@ import { SkeletonUtils } from "three-stdlib";
 import { useGrid } from "../hooks/useGrid";
 import { socket, userAtom, avatarDispatch, bondsAtom, charactersAtom, characterEmotionsAtom, dmInboxOpenAtom, selfLivePosition, mapAtom, profileViewTargetAtom, characterReactionsAtom, characterEatingAtom, expertiseCatalogAtom, selfPathAtom } from "./SocketManager";
 import { speedFor, surfaceAtClient } from "../lib/movementSpeed";
+import { PhotoAvatarBillboard, InitialBillboard } from "./PhotoAvatarBillboard";
 import { dmPanelTargetAtom } from "./DirectMessagePanel";
 import soundManager from "../audio/SoundManager";
 
@@ -209,9 +210,29 @@ export const Avatar = memo(function Avatar({
   showHtmlOverlay = true,
   vehicleId = "walk",
   expertise = null, // Phase 7E.2: string[] of tag ids (or null)
-  avatarPhotoUrl = null, // Phase 10F: optional photo billboard above head
+  avatarPhotoUrl = null, // Phase 10F: optional AI-portrait billboard
+  useFlatPhoto = false,  // Phase 10F: when true, the photo REPLACES the GLB (full-body billboard)
 }) {
   const [chatMessage, setChatMessage] = useState("");
+  // Phase 10F — Probe avatarPhotoUrl once on mount. If the file loads we
+  // hide the GLB body and render the billboard instead (full AI-avatar
+  // mode). If the probe fails (404), keep the GLB so missing portraits
+  // degrade silently.
+  const [photoExists, setPhotoExists] = useState(false);
+  useEffect(() => {
+    if (!avatarPhotoUrl) { setPhotoExists(false); return; }
+    let cancelled = false;
+    const img = new Image();
+    img.onload  = () => { if (!cancelled) setPhotoExists(true); };
+    img.onerror = () => { if (!cancelled) setPhotoExists(false); };
+    img.src = avatarPhotoUrl;
+    return () => { cancelled = true; img.onload = img.onerror = null; };
+  }, [avatarPhotoUrl]);
+  // Effective decision: caller can force flat photo, or auto-on when
+  // photo loads. When `useFlatPhoto` and the photo doesn't exist, fall
+  // back to InitialBillboard so the user is still represented as a
+  // portrait (the visual contract).
+  const isPhotoMode = !!avatarPhotoUrl && (photoExists || useFlatPhoto);
   const [actionStatus, setActionStatus] = useState(null); // { action, detail }
   const [showBondHearts, setShowBondHearts] = useState(false);
   const [bondEmote, setBondEmote] = useState(null); // "highfive" | "hug" | null
@@ -1159,36 +1180,12 @@ export const Avatar = memo(function Avatar({
     >
       {(showHtmlOverlay || id === user) && !leaving && (
         <>
-          {/* Phase 10F — circular photo billboard above the head. Sits
-              ~0.6 m above the name plate so the silhouette + photo
-              compose like an in-world ID badge. The photo is loaded
-              with onError silently hiding the layer, so residents
-              without a generated portrait keep working. */}
-          {avatarPhotoUrl && (
-            <Html
-              position-y={isNonHumanoid ? 1.55 : 2.7}
-              center
-              distanceFactor={8}
-              zIndexRange={[2, 0]}
-              style={{ overflow: "visible", pointerEvents: "none" }}
-            >
-              <img
-                src={avatarPhotoUrl}
-                alt=""
-                onError={(e) => { e.currentTarget.style.display = "none"; }}
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: "50%",
-                  objectFit: "cover",
-                  border: "2px solid #fbbf24",
-                  boxShadow: "0 4px 10px rgba(0,0,0,0.5), 0 0 0 1px rgba(15,23,42,0.6)",
-                  background: "#1e293b",
-                  display: "block",
-                }}
-              />
-            </Html>
-          )}
+          {/* Phase 10F — full-body AI-portrait billboard now replaces
+              the GLB itself (rendered above inside motion.group). The
+              previous 44 px chip above the head has been retired in
+              favour of the larger body-replacement billboard, which
+              addresses the "I want AI-based avatars that look properly
+              like humans / animals / characters" feedback directly. */}
           {/* Always-visible name label — clickable to open character menu */}
           <Html position-y={isNonHumanoid ? 1.1 : 2.1} center distanceFactor={8} zIndexRange={[1, 0]} style={{ overflow: 'visible', pointerEvents: 'none' }}>
             <div
@@ -1512,10 +1509,31 @@ export const Avatar = memo(function Avatar({
           : { delay: entranceDelayRef.current, mass: 2, stiffness: 300, damping: 30 }
         }
       >
-        {avatarUrl.startsWith("/") ? (
-          <primitive object={clone} ref={avatar} scale={0.63} position-y={0.6} />
-        ) : (
-          <primitive object={clone} ref={avatar} />
+        {/* Phase 10F — when isPhotoMode, hide the GLB and render the
+            tall AI-portrait billboard in its place. The motion.group
+            still drives walk-cycle position, vehicle rig, and bond
+            emote anchors; only the visible body changes. */}
+        {!isPhotoMode && (
+          avatarUrl.startsWith("/") ? (
+            <primitive object={clone} ref={avatar} scale={0.63} position-y={0.6} />
+          ) : (
+            <primitive object={clone} ref={avatar} />
+          )
+        )}
+        {isPhotoMode && (
+          photoExists ? (
+            <PhotoAvatarBillboard
+              photoUrl={avatarPhotoUrl}
+              accent={isBot ? "#22d3ee" : "#fbbf24"}
+              isBot={isBot}
+            />
+          ) : (
+            <InitialBillboard
+              initials={(name || "?").trim().split(/\s+/).map((s) => s[0]).join("")}
+              accent="#fbbf24"
+              isBot={isBot}
+            />
+          )
         )}
       </motion.group>
 

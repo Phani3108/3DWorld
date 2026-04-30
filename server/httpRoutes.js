@@ -41,7 +41,10 @@ export const createHttpHandler = (deps) => {
     userSockets,
   } = deps;
   // io is accessed via deps.io so it can be patched after construction
-  const DEFAULT_MAX_JSON_BODY_BYTES = 1024 * 1024; // 1MB
+  // Phase 10F — bumped from 1 MB → 1.5 MB so an AI-portrait data URL
+  // (~300–400 KB after client-side resize to 512×512 JPEG q0.78) sits
+  // comfortably inside a profile-update body alongside the other fields.
+  const DEFAULT_MAX_JSON_BODY_BYTES = 1.5 * 1024 * 1024; // 1.5MB
   const parsedBodyLimit = Number(process.env.MAX_JSON_BODY_BYTES);
   const MAX_JSON_BODY_BYTES =
     Number.isFinite(parsedBodyLimit) && parsedBodyLimit > 0

@@ -66,7 +66,7 @@ export const VehiclePicker = ({ open, onClose }) => {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.15 }}
-        className="absolute bottom-full right-0 mb-3 w-72 bg-[#1a1a2e] border border-amber-400/30 rounded-2xl shadow-2xl overflow-hidden z-50 pointer-events-auto"
+        className="fixed bottom-24 right-4 sm:right-6 w-72 bg-[#1a1a2e] border border-amber-400/30 rounded-2xl shadow-2xl overflow-hidden z-[80] pointer-events-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-4 py-2.5 border-b border-amber-400/15 flex items-center justify-between">

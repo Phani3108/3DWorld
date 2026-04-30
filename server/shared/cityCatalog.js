@@ -18,7 +18,7 @@ export const CITIES = {
     size: [60, 60],
     gridDivision: 2,
     palette: { sky: "#f4c274", ground: "#d98838", accent: "#ef4444" },
-    ambient: "/audio/ambient/hyderabad.mp3",
+    ambient: "/audio/ambient/hyderabad.ogg",
     skybox: "/textures/skybox/hyderabad.jpg",
     mapPosition: { x: 0.63, y: 0.42 }, // normalized coords on world map (0-1)
     landmarks: [
@@ -50,7 +50,7 @@ export const CITIES = {
     size: [60, 60],
     gridDivision: 2,
     palette: { sky: "#fde68a", ground: "#e7c28a", accent: "#d4a017" },
-    ambient: "/audio/ambient/dubai.mp3",
+    ambient: "/audio/ambient/dubai.ogg",
     skybox: "/textures/skybox/dubai.jpg",
     mapPosition: { x: 0.58, y: 0.38 },
     landmarks: [
@@ -82,7 +82,7 @@ export const CITIES = {
     size: [60, 60],
     gridDivision: 2,
     palette: { sky: "#bbf7d0", ground: "#7ba35f", accent: "#dc2626" },
-    ambient: "/audio/ambient/bengaluru.mp3",
+    ambient: "/audio/ambient/bengaluru.ogg",
     skybox: "/textures/skybox/bengaluru.jpg",
     mapPosition: { x: 0.625, y: 0.48 },
     landmarks: [
@@ -114,7 +114,7 @@ export const CITIES = {
     size: [60, 60],
     gridDivision: 2,
     palette: { sky: "#93c5fd", ground: "#94a3b8", accent: "#f59e0b" },
-    ambient: "/audio/ambient/mumbai.mp3",
+    ambient: "/audio/ambient/mumbai.ogg",
     skybox: "/textures/skybox/mumbai.jpg",
     mapPosition: { x: 0.605, y: 0.45 },
     landmarks: [
@@ -146,7 +146,7 @@ export const CITIES = {
     size: [60, 60],
     gridDivision: 2,
     palette: { sky: "#94a3b8", ground: "#78716c", accent: "#facc15" },
-    ambient: "/audio/ambient/newyork.mp3",
+    ambient: "/audio/ambient/newyork.ogg",
     skybox: "/textures/skybox/newyork.jpg",
     mapPosition: { x: 0.28, y: 0.40 },
     landmarks: [
@@ -178,7 +178,7 @@ export const CITIES = {
     size: [60, 60],
     gridDivision: 2,
     palette: { sky: "#a5f3fc", ground: "#e7e5e4", accent: "#ec4899" },
-    ambient: "/audio/ambient/singapore.mp3",
+    ambient: "/audio/ambient/singapore.ogg",
     skybox: "/textures/skybox/singapore.jpg",
     mapPosition: { x: 0.73, y: 0.55 },
     landmarks: [
@@ -210,7 +210,7 @@ export const CITIES = {
     size: [60, 60],
     gridDivision: 2,
     palette: { sky: "#bae6fd", ground: "#fde68a", accent: "#10b981" },
-    ambient: "/audio/ambient/sydney.mp3",
+    ambient: "/audio/ambient/sydney.ogg",
     skybox: "/textures/skybox/sydney.jpg",
     mapPosition: { x: 0.82, y: 0.72 },
     landmarks: [

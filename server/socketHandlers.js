@@ -449,6 +449,10 @@ export function registerSocketHandlers(deps) {
           coins: playerCoins.get(resolvedUserId) || DEFAULT_COINS,
           vehicleId: persistedVehicleId,
           expertise: personaExpertise,
+          // Phase 10F — humans opt in via profile flags. Photo billboard
+          // replaces the GLB body when both fields resolve.
+          usePhotoAvatar: !!userRecord?.usePhotoAvatar,
+          avatarPhotoUrl: userRecord?.avatarPhotoUrl || null,
         };
         if (!room.password) character.canUpdateRoom = true;
         // Check if this join was triggered by a room invite

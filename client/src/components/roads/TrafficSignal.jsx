@@ -1,6 +1,5 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { useGrid } from "../../hooks/useGrid";
 
 /**
  * TrafficSignal — Phase 10B.
@@ -52,9 +51,14 @@ const Bulb = ({ on, color, pos }) => {
   );
 };
 
-export const TrafficSignal = ({ at }) => {
-  const { gridToVector3 } = useGrid();
-  const v = useMemo(() => gridToVector3(at), [at, gridToVector3]);
+export const TrafficSignal = ({ at, div = 2 }) => {
+  // Position in world units — divide grid coords by gridDivision (same
+  // convention as venue tints + Roads.jsx). No useGrid → avoids the
+  // +0.25 centring offset baked into that helper.
+  const v = useMemo(
+    () => ({ x: at[0] / div, z: at[1] / div }),
+    [at, div],
+  );
   const offset = useMemo(() => offsetFor(at), [at]);
   const greenRef  = useRef();
   const yellowRef = useRef();

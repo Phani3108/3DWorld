@@ -136,6 +136,7 @@ const CharacterList = React.memo(() => {
               vehicleId={character.vehicleId}
               expertise={character.expertise}
               avatarPhotoUrl={character.avatarPhotoUrl}
+              useFlatPhoto={character.usePhotoAvatar || character.isResident}
             />
           </Suspense>
         </AvatarErrorBoundary>

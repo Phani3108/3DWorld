@@ -79,6 +79,11 @@ const ensureProfileDefaults = (user) => {
   if (!Array.isArray(user.personaTags)) user.personaTags = [];
   // Phase 7H — cumulative XP (tier derived at projection time).
   if (user.xp === undefined) user.xp = 0;
+  // Phase 10F — opt-in flag to use the AI-portrait billboard instead
+  // of the cartoon GLB. Resident records carry this implicitly via the
+  // residentService spawn (always-on); humans toggle it themselves.
+  if (user.usePhotoAvatar === undefined) user.usePhotoAvatar = false;
+  if (user.avatarPhotoUrl === undefined) user.avatarPhotoUrl = null;
   return user;
 };
 
@@ -389,6 +394,21 @@ export const updateProfile = async (userId, patch = {}) => {
     existing.avatarId = match ? match.id : existing.avatarId || null;
   }
   if (typeof patch.accentId === "string") existing.accentId = sanitizeAccentId(patch.accentId);
+  // Phase 10F — toggle + URL for the AI-portrait billboard. The URL is
+  // either a same-origin path (/avatars/...), an absolute https URL,
+  // OR a `data:image/...` URL (when the user uploads a photo, we
+  // resize+encode client-side so the resulting data URL stays well
+  // under 400 KB). Cap is generous to allow for variable encoding.
+  if (typeof patch.usePhotoAvatar === "boolean") existing.usePhotoAvatar = patch.usePhotoAvatar;
+  if (typeof patch.avatarPhotoUrl === "string") {
+    if (patch.avatarPhotoUrl === "") {
+      existing.avatarPhotoUrl = null;
+    } else if (patch.avatarPhotoUrl.length <= 600 * 1024) {
+      // Allow https://, /relative, and data:image/ URLs up to 600 KB.
+      const ok = /^(https?:\/\/|\/|data:image\/)/.test(patch.avatarPhotoUrl);
+      if (ok) existing.avatarPhotoUrl = patch.avatarPhotoUrl;
+    }
+  }
   if (typeof patch.pronouns === "string") existing.pronouns = clampStr(stripHtml(patch.pronouns), 30);
   if (typeof patch.bio === "string")      existing.bio      = clampStr(stripHtml(patch.bio), 200);
   if (typeof patch.homeCity === "string") {
@@ -430,6 +450,9 @@ export const publicProfile = (user, { storyLimit = 20, memoryLimit = 30, factLim
     // Phase 7E.3 — raw personaTags; the /profile endpoint hydrates them
     // with {emoji,label} via the expertise catalog before sending.
     personaTags: Array.isArray(user.personaTags) ? user.personaTags.slice() : [],
+    // Phase 10F — AI-portrait toggle + URL.
+    usePhotoAvatar: !!user.usePhotoAvatar,
+    avatarPhotoUrl: user.avatarPhotoUrl || null,
     stats: {
       coins: user.coins,
       storyCount: (user.stories || []).length,

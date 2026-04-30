@@ -299,8 +299,22 @@ const loadRoomsFromFile = async () => {
 const seedCityRooms = () => {
   for (const cityId of listCityIds()) {
     const roomId = `city_${cityId}`;
-    if (getCachedRoom(roomId)) continue;
     const city = CITIES[cityId];
+    // Phase 10A/10D — UPGRADE existing cached rooms with new fields
+    // (roads, pitstops, refreshed landmarks) so previously-persisted
+    // rooms.json files don't pin clients to pre-Phase-10 maps.
+    const existing = getCachedRoom(roomId);
+    if (existing) {
+      existing.landmarks = city.landmarks;
+      existing.roads     = roadsFor(cityId);
+      existing.pitstops  = pitstopsInCity(cityId);
+      existing.theme = {
+        palette: city.palette,
+        ambient: city.ambient,
+        skybox: city.skybox,
+      };
+      continue;
+    }
     const room = {
       id: roomId,
       name: city.name,

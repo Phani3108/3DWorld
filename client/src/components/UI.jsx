@@ -2090,13 +2090,13 @@ export const UI = () => {
                     {moreMenuOpen && (
                       <>
                         {/* Backdrop to close menu */}
-                        <div className="fixed inset-0 z-[15]" onClick={() => setMoreMenuOpen(false)} />
+                        <div className="fixed inset-0 z-[75]" onClick={() => setMoreMenuOpen(false)} />
                         <motion.div
                           initial={{ opacity: 0, y: 10, scale: 0.95 }}
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, y: 10, scale: 0.95 }}
                           transition={{ duration: 0.15 }}
-                          className="absolute bottom-full mb-2 right-0 w-44 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-[20]"
+                          className="fixed bottom-24 right-3 sm:right-6 w-44 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-[80]"
                         >
                           {/* Invite */}
                           {roomID && (

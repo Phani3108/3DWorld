@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
-import { useGrid } from "../../hooks/useGrid";
+import { useAtom } from "jotai";
+import { mapAtom } from "../SocketManager";
 import { TrafficSignal } from "./TrafficSignal";
 
 /**
@@ -13,59 +14,68 @@ import { TrafficSignal } from "./TrafficSignal";
  * Inputs come from `city.roads` (server/shared/roadNetwork.js):
  *   { segments: [{a,b,width,type}], intersections: [...], crosswalks: [...] }
  *
- * Render strategy:
- *   • Roads are flat planes at y = 0.005 (just above the city ground at y=0).
- *   • Sidewalks at y = 0.012 so they paint on top of asphalt at junctions.
- *   • Centre stripes at y = 0.018 (above asphalt, below venue tints which
- *     sit at y = 0.02 in Room.jsx — confirmed visually OK with a small gap).
- *   • Crosswalks at y = 0.020 with white stripe pattern via repeating box meshes.
- *   • renderOrder is set explicitly to keep the painter's order stable
- *     even if depthTest fails on integrated GPUs.
+ * COORDINATE SPACE — important: the segments + widths are in GRID cells
+ * (the same coord space venueCatalog footprints + character.position use).
+ * The visible city ground is `map.size` world units across, with
+ * `gridDivision` cells per world unit. So grid → world is `/ gridDivision`.
+ * Both the position AND the geometry size must divide; mixing units made
+ * the v1 of this component invisible (planes were 2× ground size, partly
+ * off-screen).
  *
- * All meshes are non-raycastable (raycast={() => null}) so click-to-move
- * still hits the ground plane underneath.
+ * Render strategy:
+ *   • Roads are flat planes at y = 0.02 (just above ground at y=0; venue
+ *     tints sit at y ≈ 0.04 — empirically the layer ordering reads OK).
+ *   • Centre stripes y = 0.04, sidewalks y = 0.05, crosswalks y = 0.06.
+ *   • renderOrder bumps each layer for stable painter's order on integrated GPUs.
+ *
+ * All meshes are non-raycastable so click-to-move still hits the ground.
  */
 
 const COLORS = {
-  asphalt:   "#2a2a2e",
-  laneStripe:"#f5d058",
-  bike:      "#2f6b3d",
-  sidewalk:  "#cdc6b6",
-  crosswalk: "#f3f3f3",
+  asphalt:    "#1f1f24",
+  laneStripe: "#f5d058",
+  bike:       "#3a7a4f",
+  sidewalk:   "#cdc6b6",
+  crosswalk:  "#f6f6f6",
 };
 
-const HEIGHTS = {
-  main:     0.005,
-  bike:     0.010,
-  sidewalk: 0.012,
-  stripe:   0.018,
-  crosswalk:0.020,
+const Y = {
+  main:      0.020,
+  bike:      0.025,
+  sidewalk:  0.030,
+  stripe:    0.040,
+  crosswalk: 0.045,
 };
 
 const segLength = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
-const RoadSegment = React.memo(function RoadSegment({ seg, gridToVector3 }) {
+/** Convert a grid coord to world units (mirrors Room.jsx venue tint maths). */
+const toWorldOne = (g, div) => g / div;
+const toWorldXZ  = (gx, gz, div) => [gx / div, gz / div];
+
+const RoadSegment = React.memo(function RoadSegment({ seg, div }) {
   const { a, b, width = 2, type = "main" } = seg;
   const horz = a[1] === b[1];
-  const len  = segLength(a, b);
-  // Position at midpoint, in world-space.
-  const midGrid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-  const mid = gridToVector3(midGrid);
-  const planeArgs = horz ? [len, width] : [width, len];
+  const lenGrid = segLength(a, b);
+  const lenW    = lenGrid / div;
+  const widthW  = width / div;
+  // Midpoint in world coords (no centring offset — segments are line-defined).
+  const [mx, mz] = toWorldXZ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, div);
+  const planeArgs = horz ? [lenW, widthW] : [widthW, lenW];
   const color =
     type === "bike"     ? COLORS.bike :
     type === "sidewalk" ? COLORS.sidewalk :
                           COLORS.asphalt;
   const y =
-    type === "bike"     ? HEIGHTS.bike :
-    type === "sidewalk" ? HEIGHTS.sidewalk :
-                          HEIGHTS.main;
+    type === "bike"     ? Y.bike :
+    type === "sidewalk" ? Y.sidewalk :
+                          Y.main;
   return (
     <mesh
-      position={[mid.x, y, mid.z]}
+      position={[mx, y, mz]}
       rotation={[-Math.PI / 2, 0, 0]}
       raycast={() => null}
-      renderOrder={type === "sidewalk" ? 2 : 1}
+      renderOrder={type === "sidewalk" ? 3 : type === "bike" ? 2 : 1}
     >
       <planeGeometry args={planeArgs} />
       <meshStandardMaterial color={color} roughness={0.95} metalness={0} />
@@ -73,42 +83,41 @@ const RoadSegment = React.memo(function RoadSegment({ seg, gridToVector3 }) {
   );
 });
 
-/**
- * Centre stripe for a `main` segment — an array of small dashes parallel
- * to the road. Renders only on segments wider than ~2 cells (skip tiny
- * connector spurs).
- */
-const CentreStripe = React.memo(function CentreStripe({ seg, gridToVector3 }) {
+const CentreStripe = React.memo(function CentreStripe({ seg, div }) {
   const { a, b, width = 2, type } = seg;
   if (type !== "main" || width < 2) return null;
   const horz = a[1] === b[1];
-  const len  = segLength(a, b);
-  // Place dashes every 2 cells, each dash 0.8 cells long, 0.15 wide.
-  const DASH_LEN = 0.8, DASH_W = 0.15, DASH_STRIDE = 2;
-  const count = Math.max(1, Math.floor(len / DASH_STRIDE));
+  const lenGrid = segLength(a, b);
+  // Dashes every ~2 grid cells along the segment.
+  const DASH_LEN_GRID    = 0.8;
+  const DASH_WIDTH_GRID  = 0.18;
+  const STRIDE_GRID      = 2.0;
+  const count = Math.max(1, Math.floor(lenGrid / STRIDE_GRID));
   const dashes = [];
   for (let i = 0; i < count; i++) {
-    const t = (i * DASH_STRIDE + DASH_STRIDE / 2) / len;
+    const t = (i * STRIDE_GRID + STRIDE_GRID / 2) / lenGrid;
     const gx = a[0] + (b[0] - a[0]) * t;
     const gz = a[1] + (b[1] - a[1]) * t;
     dashes.push([gx, gz]);
   }
+  const lenW = DASH_LEN_GRID / div;
+  const wW   = DASH_WIDTH_GRID / div;
   return (
     <group>
       {dashes.map(([gx, gz], i) => {
-        const v = gridToVector3([gx, gz]);
-        const dimX = horz ? DASH_LEN : DASH_W;
-        const dimZ = horz ? DASH_W : DASH_LEN;
+        const [wx, wz] = toWorldXZ(gx, gz, div);
+        const dimX = horz ? lenW : wW;
+        const dimZ = horz ? wW : lenW;
         return (
           <mesh
             key={i}
-            position={[v.x, HEIGHTS.stripe, v.z]}
+            position={[wx, Y.stripe, wz]}
             rotation={[-Math.PI / 2, 0, 0]}
             raycast={() => null}
-            renderOrder={3}
+            renderOrder={4}
           >
             <planeGeometry args={[dimX, dimZ]} />
-            <meshStandardMaterial color={COLORS.laneStripe} roughness={0.7} emissive={COLORS.laneStripe} emissiveIntensity={0.05} />
+            <meshStandardMaterial color={COLORS.laneStripe} roughness={0.7} emissive={COLORS.laneStripe} emissiveIntensity={0.12} />
           </mesh>
         );
       })}
@@ -116,35 +125,30 @@ const CentreStripe = React.memo(function CentreStripe({ seg, gridToVector3 }) {
   );
 });
 
-/**
- * Zebra crosswalk — 5 white stripes perpendicular to the road. Phase 10A
- * already emits crosswalks at every road intersection; the visual matches
- * the dual-orientation pattern (one set across the horizontal road, one
- * set across the vertical). 10B's crosswalk component reuses this look
- * and adds the signal pole.
- */
-const Crosswalk = React.memo(function Crosswalk({ at, orient, gridToVector3 }) {
+const Crosswalk = React.memo(function Crosswalk({ at, orient, div }) {
   const STRIPES = 5;
-  const STRIPE_LEN = 2.4;
-  const STRIPE_W = 0.35;
-  const STRIDE = 0.55;
-  const v = gridToVector3(at);
+  const STRIPE_LEN_GRID  = 2.4;
+  const STRIPE_W_GRID    = 0.32;
+  const STRIDE_GRID      = 0.55;
+  const [wx, wz] = toWorldXZ(at[0], at[1], div);
   const horizontal = orient === "horizontal";
   return (
-    <group position={[v.x, HEIGHTS.crosswalk, v.z]}>
+    <group position={[wx, Y.crosswalk, wz]}>
       {Array.from({ length: STRIPES }).map((_, i) => {
-        const offset = (i - (STRIPES - 1) / 2) * STRIDE;
+        const offset = (i - (STRIPES - 1) / 2) * STRIDE_GRID / div;
         const [dx, dz] = horizontal ? [0, offset] : [offset, 0];
-        const [w, h] = horizontal ? [STRIPE_LEN, STRIPE_W] : [STRIPE_W, STRIPE_LEN];
+        const lenW = STRIPE_LEN_GRID / div;
+        const wW   = STRIPE_W_GRID  / div;
+        const [planeW, planeH] = horizontal ? [lenW, wW] : [wW, lenW];
         return (
           <mesh
             key={i}
             position={[dx, 0, dz]}
             rotation={[-Math.PI / 2, 0, 0]}
             raycast={() => null}
-            renderOrder={4}
+            renderOrder={5}
           >
-            <planeGeometry args={[w, h]} />
+            <planeGeometry args={[planeW, planeH]} />
             <meshStandardMaterial color={COLORS.crosswalk} roughness={0.9} />
           </mesh>
         );
@@ -153,37 +157,33 @@ const Crosswalk = React.memo(function Crosswalk({ at, orient, gridToVector3 }) {
   );
 });
 
-/**
- * Top-level <Roads> component. Receives the road network for the current
- * city (from `cityAtom`) and renders all segments + centre stripes +
- * crosswalks. No-op when network is empty.
- */
 export const Roads = ({ network }) => {
-  const { gridToVector3 } = useGrid();
+  const [map] = useAtom(mapAtom);
+  const div = map?.gridDivision || 2;
   const segs = network?.segments || [];
   const cws  = network?.crosswalks || [];
   const intersections = network?.intersections || [];
 
   const segmentMeshes = useMemo(
-    () => segs.map((s, i) => <RoadSegment key={`seg-${i}`} seg={s} gridToVector3={gridToVector3} />),
-    [segs, gridToVector3],
+    () => segs.map((s, i) => <RoadSegment key={`seg-${i}`} seg={s} div={div} />),
+    [segs, div],
   );
   const stripeMeshes = useMemo(
-    () => segs.map((s, i) => <CentreStripe key={`stripe-${i}`} seg={s} gridToVector3={gridToVector3} />),
-    [segs, gridToVector3],
+    () => segs.map((s, i) => <CentreStripe key={`stripe-${i}`} seg={s} div={div} />),
+    [segs, div],
   );
   const crosswalkMeshes = useMemo(
-    () => cws.map((c, i) => <Crosswalk key={`xw-${i}`} at={c.at} orient={c.orient} gridToVector3={gridToVector3} />),
-    [cws, gridToVector3],
+    () => cws.map((c, i) => <Crosswalk key={`xw-${i}`} at={c.at} orient={c.orient} div={div} />),
+    [cws, div],
   );
-  // Phase 10B — pole-mounted signal at every road intersection.
-  // Offset by (+1.5, +1.5) cells so the pole sits on the corner, not
-  // in the middle of the asphalt.
+  // Phase 10B — pole-mounted signal at every road intersection. Position
+  // is in world coords too — TrafficSignal does its own grid→world via
+  // gridToVector3. Pass the grid coords directly.
   const signalMeshes = useMemo(
     () => intersections.map(([x, z], i) => (
-      <TrafficSignal key={`sig-${i}`} at={[x + 1.5, z + 1.5]} />
+      <TrafficSignal key={`sig-${i}`} at={[x + 1.5, z + 1.5]} div={div} />
     )),
-    [intersections],
+    [intersections, div],
   );
 
   if (segs.length === 0) return null;
