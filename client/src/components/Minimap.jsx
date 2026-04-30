@@ -1,6 +1,6 @@
 import { useAtom } from "jotai";
 import { useRef, useEffect, useCallback, useState } from "react";
-import { charactersAtom, mapAtom, userAtom, socket, selfLivePosition, venuesInCityAtom, currentVenueAtom } from "./SocketManager";
+import { charactersAtom, mapAtom, userAtom, socket, selfLivePosition, venuesInCityAtom, currentVenueAtom, selfPathAtom } from "./SocketManager";
 import { buildModeAtom, shopModeAtom } from "./UI";
 import { isMobileAtom } from "../hooks/useMobile";
 
@@ -39,6 +39,7 @@ export const Minimap = () => {
   const [shopMode] = useAtom(shopModeAtom);
   const [venuesInCity] = useAtom(venuesInCityAtom);
   const [currentVenue] = useAtom(currentVenueAtom);
+  const [selfPath] = useAtom(selfPathAtom); // Phase 10I — for the path overlay
   const [isMobile] = useAtom(isMobileAtom);
   const [collapsed, setCollapsed] = useState(() => {
     // Start collapsed on mobile
@@ -212,6 +213,28 @@ export const Minimap = () => {
         const [sx, sy] = toScreen(wx, wz);
         ctx.fillRect(sx - 0.5, sy - 0.5, 1, 1);
       });
+    }
+
+    // --- Phase 10I — local player's active path overlay ---
+    // The path lives in selfPathAtom as an array of THREE.Vector3 in
+    // world coords. We map each waypoint to screen via the same toScreen
+    // helper used for venues + characters. Drawn as a thin amber dashed
+    // polyline so it pops against the white-slate map background.
+    if (Array.isArray(selfPath) && selfPath.length >= 2) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(251, 191, 36, 0.85)"; // amber
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = "round";
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      const [sx0, sy0] = toScreen(selfPath[0].x, selfPath[0].z);
+      ctx.moveTo(sx0, sy0);
+      for (let i = 1; i < selfPath.length; i++) {
+        const [sx, sy] = toScreen(selfPath[i].x, selfPath[i].z);
+        ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+      ctx.restore();
     }
 
     // --- Destination marker (X where the player clicked) ---

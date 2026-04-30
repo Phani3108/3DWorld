@@ -2,11 +2,17 @@ import { describe, it, expect } from "vitest";
 import { MONUMENTS, listMonumentTypes, getMonument, allMonumentsPublic } from "../shared/monumentCatalog.js";
 import { CITIES } from "../shared/cityCatalog.js";
 
+// Phase 10C — ambient buildings (cafés / news kiosks / micro-parks)
+// are visual-only landmarks with no monument entry. Skip them in the
+// monument completeness check.
+const AMBIENT_LANDMARK_TYPES = new Set(["cafe", "newsKiosk", "microPark"]);
+
 describe("monumentCatalog completeness", () => {
-  it("every city's landmarks have a matching monument entry", () => {
+  it("every city's NON-ambient landmark has a matching monument entry", () => {
     const missing = [];
     for (const city of Object.values(CITIES)) {
       for (const lm of city.landmarks || []) {
+        if (AMBIENT_LANDMARK_TYPES.has(lm.type)) continue;
         if (!MONUMENTS[lm.type]) missing.push(`${city.id}/${lm.type}`);
       }
     }

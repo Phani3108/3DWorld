@@ -281,6 +281,107 @@ const HarbourBridge = ({ w, d }) => (
   </group>
 );
 
+// ── Phase 10C — ambient buildings (cafés, kiosks, micro-parks) ─────
+// Pure primitive geometry matching the existing aesthetic. Three small
+// landmarks added per city = 21 new footprints total. They're visual-
+// only — no menu, no host, no interactive surface.
+
+// Cafe — small box body, slanted awning slab on the front, small sign.
+const Cafe = ({ w, d, accent, sky }) => (
+  <group>
+    <mesh position={[0, 1.25, 0]} castShadow receiveShadow>
+      <boxGeometry args={[w * 0.85, 2.5, d * 0.85]} />
+      <meshStandardMaterial color="#fef3c7" roughness={0.85} />
+    </mesh>
+    {/* Awning */}
+    <mesh position={[0, 2.4, d / 2 - 0.1]} rotation={[Math.PI / 9, 0, 0]} castShadow>
+      <boxGeometry args={[w * 0.95, 0.08, d * 0.45]} />
+      <meshStandardMaterial color={accent} roughness={0.7} />
+    </mesh>
+    {/* Sign */}
+    <mesh position={[0, 2.85, 0]} castShadow>
+      <boxGeometry args={[w * 0.55, 0.4, 0.08]} />
+      <meshStandardMaterial color="#1f2937" emissive={accent} emissiveIntensity={0.15} roughness={0.6} />
+    </mesh>
+    {/* Outdoor table cluster */}
+    <mesh position={[w * 0.32, 0.5, d * 0.32]} castShadow>
+      <cylinderGeometry args={[0.32, 0.35, 1, 12]} />
+      <meshStandardMaterial color="#a78b6a" />
+    </mesh>
+    <mesh position={[w * 0.32, 1.05, d * 0.32]} castShadow>
+      <cylinderGeometry args={[0.55, 0.55, 0.05, 16]} />
+      <meshStandardMaterial color={accent} />
+    </mesh>
+  </group>
+);
+
+// News kiosk — small narrow box with a hatched window + stacks on top.
+const NewsKiosk = ({ w, d, accent }) => (
+  <group>
+    <mesh position={[0, 1.0, 0]} castShadow>
+      <boxGeometry args={[w * 0.7, 2.0, d * 0.7]} />
+      <meshStandardMaterial color="#0f172a" roughness={0.85} />
+    </mesh>
+    {/* Front window */}
+    <mesh position={[0, 1.2, d / 2 - 0.05]}>
+      <planeGeometry args={[w * 0.55, 0.9]} />
+      <meshStandardMaterial color="#fde68a" emissive="#fde68a" emissiveIntensity={0.15} />
+    </mesh>
+    {/* Magazine stacks */}
+    <mesh position={[-w * 0.18, 2.15, 0]} castShadow>
+      <boxGeometry args={[w * 0.22, 0.18, d * 0.22]} />
+      <meshStandardMaterial color={accent} />
+    </mesh>
+    <mesh position={[w * 0.18, 2.15, 0]} castShadow>
+      <boxGeometry args={[w * 0.22, 0.18, d * 0.22]} />
+      <meshStandardMaterial color="#ffffff" />
+    </mesh>
+    {/* Roof */}
+    <mesh position={[0, 2.35, 0]} castShadow>
+      <boxGeometry args={[w * 0.85, 0.1, d * 0.85]} />
+      <meshStandardMaterial color={accent} />
+    </mesh>
+  </group>
+);
+
+// MicroPark — flat green pad with tree clusters and a bench.
+const MicroPark = ({ w, d, accent }) => (
+  <group>
+    {/* Lawn pad */}
+    <mesh position={[0, 0.05, 0]} receiveShadow>
+      <boxGeometry args={[w, 0.1, d]} />
+      <meshStandardMaterial color="#4d7c0f" roughness={0.95} />
+    </mesh>
+    {/* Tree 1 */}
+    <mesh position={[-w * 0.25, 1.0, -d * 0.25]} castShadow>
+      <cylinderGeometry args={[0.12, 0.16, 1.6, 8]} />
+      <meshStandardMaterial color="#78350f" />
+    </mesh>
+    <mesh position={[-w * 0.25, 2.2, -d * 0.25]} castShadow>
+      <sphereGeometry args={[0.95, 14, 10]} />
+      <meshStandardMaterial color="#16a34a" />
+    </mesh>
+    {/* Tree 2 */}
+    <mesh position={[w * 0.28, 0.9, d * 0.20]} castShadow>
+      <cylinderGeometry args={[0.10, 0.14, 1.4, 8]} />
+      <meshStandardMaterial color="#78350f" />
+    </mesh>
+    <mesh position={[w * 0.28, 1.95, d * 0.20]} castShadow>
+      <sphereGeometry args={[0.8, 14, 10]} />
+      <meshStandardMaterial color="#15803d" />
+    </mesh>
+    {/* Bench */}
+    <mesh position={[0, 0.5, d * 0.30]} castShadow>
+      <boxGeometry args={[w * 0.55, 0.12, 0.4]} />
+      <meshStandardMaterial color={accent} />
+    </mesh>
+    <mesh position={[0, 0.7, d * 0.30 - 0.18]} castShadow>
+      <boxGeometry args={[w * 0.55, 0.5, 0.06]} />
+      <meshStandardMaterial color={accent} />
+    </mesh>
+  </group>
+);
+
 // ── Type → component registry ───────────────────────────────────────
 const LANDMARK_IMPLS = {
   // Hyderabad
@@ -310,6 +411,10 @@ const LANDMARK_IMPLS = {
   // Sydney
   operaHouse: OperaHouse,
   harbourBridge: HarbourBridge,
+  // Phase 10C — ambient buildings shared across cities
+  cafe: Cafe,
+  newsKiosk: NewsKiosk,
+  microPark: MicroPark,
 };
 
 export default Landmark;

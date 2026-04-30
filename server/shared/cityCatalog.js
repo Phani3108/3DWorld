@@ -25,6 +25,10 @@ export const CITIES = {
       { type: "charminar",    footprint: { x: 28, z: 28, w: 8, d: 8 } },
       { type: "golcondaArch", footprint: { x: 10, z: 40, w: 6, d: 4 } },
       { type: "hitecTower",   footprint: { x: 45, z: 10, w: 5, d: 5 } },
+      // Phase 10C — ambient density, picked to avoid road grid (x=30, z=30, z=27).
+      { type: "cafe",         footprint: { x: 16, z: 14, w: 4, d: 4 } },
+      { type: "newsKiosk",    footprint: { x: 38, z: 18, w: 3, d: 3 } },
+      { type: "microPark",    footprint: { x: 44, z: 44, w: 6, d: 6 } },
     ],
     spawn: [30, 0, 40],
     greeterBot: "farah_hyd",
@@ -53,6 +57,10 @@ export const CITIES = {
       { type: "burjKhalifa", footprint: { x: 30, z: 30, w: 4, d: 4 } },
       { type: "burjAlArab",  footprint: { x: 10, z: 45, w: 6, d: 4 } },
       { type: "goldSouk",    footprint: { x: 45, z: 8,  w: 8, d: 4 } },
+      // Phase 10C — ambient density
+      { type: "cafe",        footprint: { x: 20, z: 18, w: 4, d: 4 } },
+      { type: "newsKiosk",   footprint: { x: 38, z: 20, w: 3, d: 3 } },
+      { type: "microPark",   footprint: { x: 18, z: 38, w: 6, d: 6 } },
     ],
     spawn: [30, 0, 40],
     greeterBot: "layla_dxb",
@@ -81,6 +89,10 @@ export const CITIES = {
       { type: "vidhanaSoudha", footprint: { x: 28, z: 28, w: 8, d: 6 } },
       { type: "cubbonPark",    footprint: { x: 8,  z: 10, w: 14, d: 10 } },
       { type: "techPark",      footprint: { x: 45, z: 42, w: 6, d: 6 } },
+      // Phase 10C — ambient density
+      { type: "cafe",          footprint: { x: 26, z: 14, w: 4, d: 4 } },
+      { type: "newsKiosk",     footprint: { x: 12, z: 36, w: 3, d: 3 } },
+      { type: "microPark",     footprint: { x: 38, z: 18, w: 6, d: 6 } },
     ],
     spawn: [30, 0, 40],
     greeterBot: "arjun_blr",
@@ -109,6 +121,10 @@ export const CITIES = {
       { type: "gatewayOfIndia", footprint: { x: 30, z: 45, w: 8, d: 6 } },
       { type: "marineDrive",    footprint: { x: 8,  z: 20, w: 20, d: 3 } },
       { type: "localTrain",     footprint: { x: 45, z: 12, w: 10, d: 3 } },
+      // Phase 10C — ambient density
+      { type: "cafe",           footprint: { x: 14, z: 36, w: 4, d: 4 } },
+      { type: "newsKiosk",      footprint: { x: 38, z: 22, w: 3, d: 3 } },
+      { type: "microPark",      footprint: { x: 44, z: 36, w: 6, d: 6 } },
     ],
     spawn: [30, 0, 40],
     greeterBot: "priya_mum",
@@ -137,6 +153,10 @@ export const CITIES = {
       { type: "timesSquare",    footprint: { x: 28, z: 28, w: 8, d: 8 } },
       { type: "empireState",    footprint: { x: 10, z: 10, w: 4, d: 4 } },
       { type: "brooklynBridge", footprint: { x: 42, z: 42, w: 14, d: 4 } },
+      // Phase 10C — ambient density
+      { type: "cafe",           footprint: { x: 18, z: 16, w: 4, d: 4 } },
+      { type: "newsKiosk",      footprint: { x: 40, z: 18, w: 3, d: 3 } },
+      { type: "microPark",      footprint: { x: 18, z: 38, w: 6, d: 6 } },
     ],
     spawn: [30, 0, 40],
     greeterBot: "marcus_nyc",
@@ -165,6 +185,10 @@ export const CITIES = {
       { type: "marinaBaySands", footprint: { x: 28, z: 28, w: 10, d: 6 } },
       { type: "supertrees",     footprint: { x: 10, z: 40, w: 8,  d: 8 } },
       { type: "merlion",        footprint: { x: 45, z: 12, w: 3,  d: 3 } },
+      // Phase 10C — ambient density
+      { type: "cafe",           footprint: { x: 22, z: 14, w: 4, d: 4 } },
+      { type: "newsKiosk",      footprint: { x: 40, z: 22, w: 3, d: 3 } },
+      { type: "microPark",      footprint: { x: 38, z: 38, w: 6, d: 6 } },
     ],
     spawn: [30, 0, 40],
     greeterBot: "mei_sg",
@@ -192,6 +216,10 @@ export const CITIES = {
     landmarks: [
       { type: "operaHouse",    footprint: { x: 28, z: 42, w: 10, d: 6 } },
       { type: "harbourBridge", footprint: { x: 10, z: 42, w: 16, d: 3 } },
+      // Phase 10C — ambient density
+      { type: "cafe",          footprint: { x: 14, z: 14, w: 4, d: 4 } },
+      { type: "newsKiosk",     footprint: { x: 40, z: 18, w: 3, d: 3 } },
+      { type: "microPark",     footprint: { x: 38, z: 36, w: 6, d: 6 } },
     ],
     spawn: [30, 0, 40],
     greeterBot: "jack_syd",

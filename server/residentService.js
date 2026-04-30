@@ -147,6 +147,7 @@ export const spawnResidents = async ({
       existing.isResident = true;
       existing.role = r.role || "host";
       existing.expertise = Array.isArray(r.expertise) ? r.expertise.slice() : [];
+      existing.avatarPhotoUrl = `/avatars/residents/${r.id}.webp`;
       skipped++;
       continue;
     }
@@ -189,6 +190,10 @@ export const spawnResidents = async ({
       // round-trip to /api/v1/residents.
       role: r.role || "host",
       expertise: Array.isArray(r.expertise) ? r.expertise.slice() : [],
+      // Phase 10F — convention-based photo URL. Same path the public
+      // resident projection uses; client renders a circular billboard
+      // above the rigged avatar when the file exists.
+      avatarPhotoUrl: `/avatars/residents/${r.id}.webp`,
     };
     room.characters.push(character);
 

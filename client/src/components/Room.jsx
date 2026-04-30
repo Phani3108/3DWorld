@@ -19,6 +19,7 @@ import { showRoomSelectorAtom } from "./UI";
 import { Landmark } from "./landmarks/Landmark";
 import { Roads } from "./roads/Roads";
 import { Pitstops } from "./Pitstops";
+import { PathRibbon } from "./PathRibbon";
 import { Prop } from "./props/Prop";
 import { cityAtom, venuesInCityAtom, currentVenueAtom } from "./SocketManager";
 
@@ -134,6 +135,7 @@ const CharacterList = React.memo(() => {
               showHtmlOverlay={htmlVisibleSet.has(character.id)}
               vehicleId={character.vehicleId}
               expertise={character.expertise}
+              avatarPhotoUrl={character.avatarPhotoUrl}
             />
           </Suspense>
         </AvatarErrorBoundary>
@@ -529,6 +531,9 @@ export const Room = () => {
       {!shopMode && isCity && Array.isArray(map.pitstops) && map.pitstops.length > 0 && (
         <Pitstops pitstops={map.pitstops} accent={map?.theme?.palette?.accent} />
       )}
+
+      {/* Phase 10I — glowing dotted path from local player to destination. */}
+      {!shopMode && <PathRibbon />}
 
       {/* City landmarks — rendered from the catalog footprint data */}
       {!shopMode && isCity && map.landmarks && (

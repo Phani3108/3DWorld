@@ -96,6 +96,11 @@ export const expertiseCatalogAtom = atom(null);
 // Phase 8E: LLM status — { active: {id, model, stub}, providers, ... } or null
 export const llmStatusAtom = atom(null);
 
+// Phase 10I: local player's currently-active path (Array<Vector3> in world
+// coords, same shape pathRef holds inside Avatar). Cleared when the avatar
+// reaches its final waypoint. PathRibbon + ETAChip read from this.
+export const selfPathAtom = atom(null);
+
 // Phase 7C.2: camera overview state (true = bird's-eye of whole city)
 export const cameraOverviewAtom = atom(false);
 

@@ -9,7 +9,7 @@ import { atom, useAtom } from "jotai";
 import React, { useEffect, useMemo, useRef, useState, memo, useCallback } from "react";
 import { SkeletonUtils } from "three-stdlib";
 import { useGrid } from "../hooks/useGrid";
-import { socket, userAtom, avatarDispatch, bondsAtom, charactersAtom, characterEmotionsAtom, dmInboxOpenAtom, selfLivePosition, mapAtom, profileViewTargetAtom, characterReactionsAtom, characterEatingAtom, expertiseCatalogAtom } from "./SocketManager";
+import { socket, userAtom, avatarDispatch, bondsAtom, charactersAtom, characterEmotionsAtom, dmInboxOpenAtom, selfLivePosition, mapAtom, profileViewTargetAtom, characterReactionsAtom, characterEatingAtom, expertiseCatalogAtom, selfPathAtom } from "./SocketManager";
 import { speedFor, surfaceAtClient } from "../lib/movementSpeed";
 import { dmPanelTargetAtom } from "./DirectMessagePanel";
 import soundManager from "../audio/SoundManager";
@@ -209,6 +209,7 @@ export const Avatar = memo(function Avatar({
   showHtmlOverlay = true,
   vehicleId = "walk",
   expertise = null, // Phase 7E.2: string[] of tag ids (or null)
+  avatarPhotoUrl = null, // Phase 10F: optional photo billboard above head
 }) {
   const [chatMessage, setChatMessage] = useState("");
   const [actionStatus, setActionStatus] = useState(null); // { action, detail }
@@ -257,6 +258,10 @@ export const Avatar = memo(function Avatar({
   const sitLegFixRef = useRef(null);
   const pathRef = useRef([]);
   const pathIndexRef = useRef(0); // index pointer instead of shift()
+  // Phase 10I — only the LOCAL player publishes its path so PathRibbon
+  // + ETAChip can render. We use the atom's setter directly so updates
+  // don't cause Avatar re-renders.
+  const [, setSelfPath] = useAtom(selfPathAtom);
 
   // When the server sends a new position (e.g. after reconnect), snap to it
   const lastServerGridPos = useRef(gridPosition);
@@ -526,6 +531,12 @@ export const Avatar = memo(function Avatar({
       pathIndexRef.current = startIndex;
       if (value.path && value.path.length > 0) {
         lastServerGridPos.current = value.path[value.path.length - 1];
+      }
+      // Phase 10I — publish path for the LOCAL player only. Slice the
+      // array from the live start index so the ribbon doesn't show
+      // already-walked waypoints.
+      if (id === user) {
+        setSelfPath(newPath.length > 0 ? newPath.slice(startIndex) : null);
       }
     }
 
@@ -971,6 +982,12 @@ export const Avatar = memo(function Avatar({
             walkToSitRef.current = false;
             isSittingRef.current = true;
           }
+          // Phase 10I — once the local player has consumed all
+          // waypoints, clear the path atom so PathRibbon / ETAChip
+          // disappear.
+          if (pathIndexRef.current >= path.length && id === user) {
+            setSelfPath(null);
+          }
 
           // Keep walk animation active while there are more waypoints
           // so we don't flash idle for a frame between waypoints
@@ -1142,6 +1159,36 @@ export const Avatar = memo(function Avatar({
     >
       {(showHtmlOverlay || id === user) && !leaving && (
         <>
+          {/* Phase 10F — circular photo billboard above the head. Sits
+              ~0.6 m above the name plate so the silhouette + photo
+              compose like an in-world ID badge. The photo is loaded
+              with onError silently hiding the layer, so residents
+              without a generated portrait keep working. */}
+          {avatarPhotoUrl && (
+            <Html
+              position-y={isNonHumanoid ? 1.55 : 2.7}
+              center
+              distanceFactor={8}
+              zIndexRange={[2, 0]}
+              style={{ overflow: "visible", pointerEvents: "none" }}
+            >
+              <img
+                src={avatarPhotoUrl}
+                alt=""
+                onError={(e) => { e.currentTarget.style.display = "none"; }}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  border: "2px solid #fbbf24",
+                  boxShadow: "0 4px 10px rgba(0,0,0,0.5), 0 0 0 1px rgba(15,23,42,0.6)",
+                  background: "#1e293b",
+                  display: "block",
+                }}
+              />
+            </Html>
+          )}
           {/* Always-visible name label — clickable to open character menu */}
           <Html position-y={isNonHumanoid ? 1.1 : 2.1} center distanceFactor={8} zIndexRange={[1, 0]} style={{ overflow: 'visible', pointerEvents: 'none' }}>
             <div
