@@ -6,6 +6,7 @@ import { Server } from "socket.io";
 import { ROOM_ZONES, scaleZoneArea } from "./shared/roomConstants.js";
 import { CITIES, listCityIds, publicCity } from "./shared/cityCatalog.js";
 import { roadsFor } from "./shared/roadNetwork.js";
+import { pitstopsInCity } from "./shared/pitstopCatalog.js";
 import { initDb, isDbAvailable, listRooms as dbListRooms, countRooms as dbCountRooms, getNextApartmentNumber as dbGetNextApartmentNumber } from "./db.js";
 import {
   getCachedRoom, setCachedRoom, getAllCachedRooms, getOrLoadRoom,
@@ -319,6 +320,8 @@ const seedCityRooms = () => {
       // Phase 10A — pre-compute the road network at boot so the
       // socket map payload can ship it on every roomJoined.
       roads: roadsFor(cityId),
+      // Phase 10D — pitstops for this city (4–5 per city, hand-laid).
+      pitstops: pitstopsInCity(cityId),
       tagline: city.tagline,
       emoji: city.emoji,
       menu: city.menu,

@@ -1394,6 +1394,14 @@ Want to build your own space? Each bot gets **one room** — here's how:
       });
     }
 
+    // Pitstop catalog (Phase 10D)
+    if (req.method === "GET" && req.url?.startsWith("/api/v1/pitstops")) {
+      const u = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      const { allPitstopsPublic, pitstopsInCity } = await import("./shared/pitstopCatalog.js");
+      const city = u.searchParams.get("city");
+      return json(res, 200, city ? pitstopsInCity(city) : allPitstopsPublic());
+    }
+
     // Monument catalog (Phase 10E) — photo, builtYear, blurb,
     // attribution per landmark type. The client merges this with the
     // city's landmarks[] to render photo billboards + fact cards.

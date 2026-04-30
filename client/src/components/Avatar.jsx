@@ -10,6 +10,7 @@ import React, { useEffect, useMemo, useRef, useState, memo, useCallback } from "
 import { SkeletonUtils } from "three-stdlib";
 import { useGrid } from "../hooks/useGrid";
 import { socket, userAtom, avatarDispatch, bondsAtom, charactersAtom, characterEmotionsAtom, dmInboxOpenAtom, selfLivePosition, mapAtom, profileViewTargetAtom, characterReactionsAtom, characterEatingAtom, expertiseCatalogAtom } from "./SocketManager";
+import { speedFor, surfaceAtClient } from "../lib/movementSpeed";
 import { dmPanelTargetAtom } from "./DirectMessagePanel";
 import soundManager from "../audio/SoundManager";
 
@@ -21,7 +22,10 @@ import { motion } from "framer-motion-3d";
 export const selectedCharacterAtom = atom(null);
 export const followedCharacterAtom = atom(null);
 
-const MOVEMENT_SPEED = 4;
+// Phase 10H — was a fixed constant; now derived per-frame from the
+// avatar's vehicle + the road surface beneath it (see speedFor below).
+// Kept as a fallback when the road network isn't available yet.
+const FALLBACK_MOVEMENT_SPEED = 4;
 // How fast the character rotates to face movement direction (radians/sec)
 const ROTATION_SPEED = 12;
 // Arrival threshold — snap to waypoint when this close
@@ -919,7 +923,24 @@ export const Avatar = memo(function Avatar({
 
           const isLastWaypoint = idx === path.length - 1;
           const speedScale = isLastWaypoint ? Math.max(0.3, Math.min(1, dist / 1.0)) : 1;
-          const step = MOVEMENT_SPEED * speedScale * delta;
+          // Phase 10H — per-frame speed lookup based on vehicle + the
+          // road surface beneath the avatar. Falls back to the old
+          // fixed constant when the road network hasn't loaded yet
+          // (e.g. apartment rooms, plaza, or pre-Phase-10A worlds).
+          const segs = mapDataRef.current?.roads?.segments;
+          let live = FALLBACK_MOVEMENT_SPEED;
+          if (segs) {
+            const div = mapDataRef.current?.gridDivision || 2;
+            const myGrid = [group.current.position.x * div, group.current.position.z * div];
+            const surface = surfaceAtClient(segs, myGrid);
+            live = speedFor(vehicleId, surface);
+          } else if (vehicleId && vehicleId !== "walk") {
+            // No road data — still apply the vehicle multiplier off the
+            // fallback base, so vehicles still feel different in non-city
+            // rooms.
+            live = speedFor(vehicleId, null);
+          }
+          const step = live * speedScale * delta;
           const moveDistance = Math.min(step, dist);
 
           _direction.copy(target).sub(group.current.position).normalize().multiplyScalar(moveDistance);

@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { useGrid } from "../../hooks/useGrid";
+import { TrafficSignal } from "./TrafficSignal";
 
 /**
  * Roads — Phase 10A.
@@ -161,6 +162,7 @@ export const Roads = ({ network }) => {
   const { gridToVector3 } = useGrid();
   const segs = network?.segments || [];
   const cws  = network?.crosswalks || [];
+  const intersections = network?.intersections || [];
 
   const segmentMeshes = useMemo(
     () => segs.map((s, i) => <RoadSegment key={`seg-${i}`} seg={s} gridToVector3={gridToVector3} />),
@@ -174,6 +176,15 @@ export const Roads = ({ network }) => {
     () => cws.map((c, i) => <Crosswalk key={`xw-${i}`} at={c.at} orient={c.orient} gridToVector3={gridToVector3} />),
     [cws, gridToVector3],
   );
+  // Phase 10B — pole-mounted signal at every road intersection.
+  // Offset by (+1.5, +1.5) cells so the pole sits on the corner, not
+  // in the middle of the asphalt.
+  const signalMeshes = useMemo(
+    () => intersections.map(([x, z], i) => (
+      <TrafficSignal key={`sig-${i}`} at={[x + 1.5, z + 1.5]} />
+    )),
+    [intersections],
+  );
 
   if (segs.length === 0) return null;
   return (
@@ -181,6 +192,7 @@ export const Roads = ({ network }) => {
       {segmentMeshes}
       {stripeMeshes}
       {crosswalkMeshes}
+      {signalMeshes}
     </group>
   );
 };

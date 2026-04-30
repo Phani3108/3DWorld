@@ -472,6 +472,7 @@ export function registerSocketHandlers(deps) {
             theme: room.theme || null,
             landmarks: room.landmarks || [],
             roads: room.roads || null,
+            pitstops: room.pitstops || [],
             tagline: room.tagline || null,
             emoji: room.emoji || null,
             // Phase 6 additions
@@ -511,6 +512,7 @@ export function registerSocketHandlers(deps) {
             theme: room.theme || null,
             landmarks: room.landmarks || [],
             roads: room.roads || null,
+            pitstops: room.pitstops || [],
             tagline: room.tagline || null,
             emoji: room.emoji || null,
             // Phase 6 additions
@@ -658,6 +660,7 @@ export function registerSocketHandlers(deps) {
             theme: room.theme || null,
             landmarks: room.landmarks || [],
             roads: room.roads || null,
+            pitstops: room.pitstops || [],
             tagline: room.tagline || null,
             emoji: room.emoji || null,
             // Phase 6 additions
@@ -888,6 +891,49 @@ export function registerSocketHandlers(deps) {
               });
             }
           }
+
+          // ── Phase 10D — pitstop proximity ──
+          // Walking within ~2.5 cells of a pitstop fires a one-line
+          // ambient chat from a "stranger nearby" chip + grants +1
+          // reputation in the city, daily-debounced per (user, pitstop).
+          try {
+            const pitstops = room.pitstops || [];
+            if (pitstops.length > 0 && character.userId) {
+              const cx = character.position[0];
+              const cz = character.position[1];
+              for (const ps of pitstops) {
+                const [px, pz] = ps.position;
+                const distSq = (cx - px) * (cx - px) + (cz - pz) * (cz - pz);
+                if (distSq > 6.25) continue; // > 2.5 cells
+                const dayKey = new Date().toISOString().slice(0, 10);
+                character._pitstopHits = character._pitstopHits || {};
+                const seenKey = `${ps.id}:${dayKey}`;
+                if (character._pitstopHits[seenKey]) continue;
+                character._pitstopHits[seenKey] = true;
+                // Emit the ambient chat from a synthetic actor so the
+                // bubble lands on top of the pitstop spot, not the player.
+                io.to(room.id).emit("playerChatMessage", {
+                  id:    `pitstop:${ps.id}`,
+                  name:  `🛑 ${ps.theme}`,
+                  message: ps.line,
+                  ambient: true, // 7E.6 archive skips ambient
+                });
+                // +1 reputation (uses Phase 9C reputation service).
+                try {
+                  const { addReputation } = await import("./reputationService.js");
+                  if (ps.cityId) addReputation(character.userId, ps.cityId, 1);
+                } catch {}
+                // Tell the local player so client toast can render.
+                socket.emit("pitstopPass", {
+                  id: ps.id,
+                  cityId: ps.cityId,
+                  theme: ps.theme,
+                  line: ps.line,
+                });
+                break; // one trigger per move
+              }
+            }
+          } catch {}
         }
       });
 
@@ -1284,6 +1330,7 @@ export function registerSocketHandlers(deps) {
             theme: room.theme || null,
             landmarks: room.landmarks || [],
             roads: room.roads || null,
+            pitstops: room.pitstops || [],
             tagline: room.tagline || null,
             emoji: room.emoji || null,
             // Phase 6 additions
@@ -1606,6 +1653,7 @@ export function registerSocketHandlers(deps) {
             theme: room.theme || null,
             landmarks: room.landmarks || [],
             roads: room.roads || null,
+            pitstops: room.pitstops || [],
             tagline: room.tagline || null,
             emoji: room.emoji || null,
             // Phase 6 additions
@@ -1688,6 +1736,7 @@ export function registerSocketHandlers(deps) {
             theme: room.theme || null,
             landmarks: room.landmarks || [],
             roads: room.roads || null,
+            pitstops: room.pitstops || [],
             tagline: room.tagline || null,
             emoji: room.emoji || null,
             // Phase 6 additions

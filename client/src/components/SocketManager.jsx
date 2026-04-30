@@ -869,6 +869,12 @@ export const SocketManager = () => {
       setCurrentHotspot(null);
     }
 
+    // Phase 10D — pitstop drive-by toast.
+    function onPitstopPass({ id, cityId, theme, line }) {
+      if (!id) return;
+      addActivity("pitstop", "Stranger", false, `🛑 ${theme}: ${line.slice(0, 90)}`);
+    }
+
     // Phase 9B — quest completion toast (triggered by server-side tick
     // from venue entry, ask, bazaar buy, etc. — the socket form is only
     // sent for the venue-entry path; HTTP responses handle the others).
@@ -895,6 +901,7 @@ export const SocketManager = () => {
     socket.on("hotspotEnter", onHotspotEnter);
     socket.on("hotspotExit", onHotspotExit);
     socket.on("questsCompleted", onQuestsCompleted);
+    socket.on("pitstopPass", onPitstopPass);
     socket.on("characterVehicleChange", onCharacterVehicleChange);
 
     socket.on("connect", onConnect);
@@ -945,6 +952,7 @@ export const SocketManager = () => {
       socket.off("hotspotEnter", onHotspotEnter);
       socket.off("hotspotExit", onHotspotExit);
       socket.off("questsCompleted", onQuestsCompleted);
+      socket.off("pitstopPass", onPitstopPass);
       socket.off("characterVehicleChange", onCharacterVehicleChange);
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);

@@ -18,6 +18,7 @@ import { BulletinBoard } from "./BulletinBoard";
 import { showRoomSelectorAtom } from "./UI";
 import { Landmark } from "./landmarks/Landmark";
 import { Roads } from "./roads/Roads";
+import { Pitstops } from "./Pitstops";
 import { Prop } from "./props/Prop";
 import { cityAtom, venuesInCityAtom, currentVenueAtom } from "./SocketManager";
 
@@ -522,6 +523,11 @@ export const Room = () => {
           BEFORE landmarks so signal poles + landmark photos sit on top. */}
       {!shopMode && isCity && map.roads && (
         <Roads network={map.roads} />
+      )}
+
+      {/* Phase 10D — pitstop conversation points between venues. */}
+      {!shopMode && isCity && Array.isArray(map.pitstops) && map.pitstops.length > 0 && (
+        <Pitstops pitstops={map.pitstops} accent={map?.theme?.palette?.accent} />
       )}
 
       {/* City landmarks — rendered from the catalog footprint data */}
