@@ -1394,6 +1394,21 @@ Want to build your own space? Each bot gets **one room** — here's how:
       });
     }
 
+    // Monument catalog (Phase 10E) — photo, builtYear, blurb,
+    // attribution per landmark type. The client merges this with the
+    // city's landmarks[] to render photo billboards + fact cards.
+    if (req.method === "GET" && req.url === "/api/v1/monuments") {
+      const { allMonumentsPublic } = await import("./shared/monumentCatalog.js");
+      return json(res, 200, allMonumentsPublic());
+    }
+    const monumentMatch = req.url?.match(/^\/api\/v1\/monuments\/([a-zA-Z0-9_-]+)$/);
+    if (req.method === "GET" && monumentMatch) {
+      const { getMonument } = await import("./shared/monumentCatalog.js");
+      const m = getMonument(monumentMatch[1]);
+      if (!m) return json(res, 404, { error: "monument_not_found" });
+      return json(res, 200, m);
+    }
+
     // Tier catalog (Phase 7H) — static list so clients can render the
     // full ladder alongside the user's current tier.
     if (req.method === "GET" && req.url === "/api/v1/tiers") {

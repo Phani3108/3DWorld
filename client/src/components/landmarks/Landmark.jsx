@@ -10,6 +10,7 @@
  */
 
 import { useMemo } from "react";
+import { MonumentBillboard } from "./MonumentBillboard";
 
 /** A grid-unit → world-unit converter mirroring server/pathfinding.js maths. */
 const toWorld = (grid, gridDivision = 2) => grid / gridDivision;
@@ -29,6 +30,11 @@ export const Landmark = ({ type, footprint, palette, gridDivision = 2 }) => {
   return (
     <group position={[worldX, 0, worldZ]}>
       <Impl w={worldW} d={worldD} accent={accent} sky={sky} ground={ground} />
+      {/* Phase 10E — real photo billboard layered ON the primitive
+          silhouette. The plane fades in past 12 m so close-up still
+          shows the playful low-poly structure. Texture loader is
+          fault-tolerant: missing files render nothing. */}
+      <MonumentBillboard type={type} w={worldW} d={worldD} />
     </group>
   );
 };

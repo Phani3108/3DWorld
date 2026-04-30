@@ -17,6 +17,7 @@ import { Skyscraper } from "./Skyscraper";
 import { BulletinBoard } from "./BulletinBoard";
 import { showRoomSelectorAtom } from "./UI";
 import { Landmark } from "./landmarks/Landmark";
+import { Roads } from "./roads/Roads";
 import { Prop } from "./props/Prop";
 import { cityAtom, venuesInCityAtom, currentVenueAtom } from "./SocketManager";
 
@@ -515,6 +516,12 @@ export const Room = () => {
           <Skyscraper scale={5.9} position={[5.5, 0, map.size[1] - 5.5]} />
           <Skyscraper scale={5.9} position={[map.size[0] - 5.5, 0, map.size[1] - 5.5]} />
         </group>
+      )}
+
+      {/* Phase 10A — black-top road network for the current city. Renders
+          BEFORE landmarks so signal poles + landmark photos sit on top. */}
+      {!shopMode && isCity && map.roads && (
+        <Roads network={map.roads} />
       )}
 
       {/* City landmarks — rendered from the catalog footprint data */}

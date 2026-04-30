@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import { Server } from "socket.io";
 import { ROOM_ZONES, scaleZoneArea } from "./shared/roomConstants.js";
 import { CITIES, listCityIds, publicCity } from "./shared/cityCatalog.js";
+import { roadsFor } from "./shared/roadNetwork.js";
 import { initDb, isDbAvailable, listRooms as dbListRooms, countRooms as dbCountRooms, getNextApartmentNumber as dbGetNextApartmentNumber } from "./db.js";
 import {
   getCachedRoom, setCachedRoom, getAllCachedRooms, getOrLoadRoom,
@@ -315,6 +316,9 @@ const seedCityRooms = () => {
         skybox: city.skybox,
       },
       landmarks: city.landmarks,
+      // Phase 10A — pre-compute the road network at boot so the
+      // socket map payload can ship it on every roomJoined.
+      roads: roadsFor(cityId),
       tagline: city.tagline,
       emoji: city.emoji,
       menu: city.menu,

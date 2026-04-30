@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import { activityEventsAtom } from "./ActivityFeed";
 import soundManager from "../audio/SoundManager";
+import { registerCityMusic, registerVenueMusic, slugify as _slugify } from "../audio/musicRegistry";
 
 export const socket = io(
   import.meta.env.VITE_SERVER_URL || "http://localhost:3000"
@@ -201,6 +202,11 @@ export const SocketManager = () => {
   const charactersRef = useRef([]);
   useEffect(() => { charactersRef.current = _characters; }, [_characters]);
 
+  // Phase 10G — track the city we're currently in so onVenueExit can
+  // fall back to the city ambient even when the venue payload is gone.
+  const currentCityRef = useRef(null);
+  useEffect(() => { currentCityRef.current = _map?.cityId || null; }, [_map?.cityId]);
+
   // Batched position updates from playerMove events — flushed periodically
   // so the proximity sort in CharacterList stays current without re-rendering
   // on every single move event.
@@ -316,6 +322,17 @@ export const SocketManager = () => {
         }
         // Clear stale venue state on room change
         setCurrentVenue(null);
+        // Phase 10G — start city ambient when joining a new city room.
+        // Skips silently if the audio file is missing.
+        try {
+          if (value.map.cityId) {
+            const cityTrack = registerCityMusic(value.map.cityId);
+            if (cityTrack) soundManager.playFirstAvailable([cityTrack]);
+          } else {
+            // Non-city room (apartment, plaza) — stop any city music.
+            soundManager.stopMusic?.();
+          }
+        } catch {}
       }
       if (value.userId && value.userId !== userId) {
         localStorage.setItem("3dworld_user_id", value.userId);
@@ -816,11 +833,31 @@ export const SocketManager = () => {
     function onVenueEnter({ venue }) {
       if (!venue) return;
       setCurrentVenue(venue);
+      // Phase 10G — register + play this venue's music. Falls back through
+      // venue → city → silence; SoundManager skips any track whose file
+      // 404'd at load, so missing audio assets degrade gracefully.
+      try {
+        const venueTrack = registerVenueMusic(venue);
+        const cityTrack  = registerCityMusic(venue.cityId);
+        const candidates = [venueTrack, cityTrack].filter(Boolean);
+        if (candidates.length > 0) {
+          const duck = typeof venue?.ambience?.cityVolumeDuck === "number" ? 0 : 0;
+          soundManager.playFirstAvailable(candidates, { duck });
+        }
+      } catch {}
     }
     function onVenueExit() {
       setCurrentVenue(null);
       // Leaving a venue implicitly leaves any hotspot too.
       setCurrentHotspot(null);
+      // Phase 10G — fall back to the city ambient on venue exit.
+      try {
+        const cityId = currentCityRef.current;
+        if (cityId) {
+          const cityTrack = registerCityMusic(cityId);
+          if (cityTrack) soundManager.playFirstAvailable([cityTrack]);
+        }
+      } catch {}
     }
 
     // Phase 7E.1: local player entered / exited a hotspot inside a venue.

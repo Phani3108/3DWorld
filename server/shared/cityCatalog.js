@@ -6,6 +6,8 @@
  * on the client. No logic changes anywhere else.
  */
 
+import { roadsFor } from "./roadNetwork.js";
+
 export const CITIES = {
   hyderabad: {
     id: "hyderabad",
@@ -227,6 +229,10 @@ export const publicCity = (city) => {
     funFacts: city.funFacts,
     size: city.size,
     gridDivision: city.gridDivision,
+    // Phase 10A — road network (segments + intersections + crosswalks).
+    // Sent to the client on roomJoined inside `map.cityRoads` so <Roads>
+    // renders without a second round-trip.
+    roads: roadsFor(city.id),
   };
 };
 

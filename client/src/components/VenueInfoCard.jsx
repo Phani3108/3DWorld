@@ -12,6 +12,7 @@ import {
   llmStatusAtom,
 } from "./SocketManager";
 import { buyFood, askAgent, fetchUserQuests, acceptQuest, fetchEventsAtVenue } from "../lib/api";
+import MusicChip from "./MusicChip";
 
 /**
  * VenueInfoCard — auto-slides in from the bottom-right on `venueEnter`.
@@ -196,9 +197,9 @@ export const VenueInfoCard = () => {
               <p className="text-[11px] text-gray-400 line-clamp-2">{venue.blurb}</p>
               <div className="flex gap-1 mt-1 text-[9px] uppercase tracking-wider flex-wrap">
                 <span className="text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded">{venue.type}</span>
-                {venue.ambience?.music && (
-                  <span className="text-pink-300 bg-pink-500/20 px-1.5 py-0.5 rounded">🎵 ambience</span>
-                )}
+                {/* Phase 10G — replaces the static "🎵 ambience" stub
+                    with the live currently-playing track + license. */}
+                <MusicChip />
                 {/* Phase 9G — LIVE NOW chip. When a scheduled event is
                     currently running at this venue, light it up so players
                     feel "I should be here right now". */}

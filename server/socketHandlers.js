@@ -471,6 +471,7 @@ export function registerSocketHandlers(deps) {
             isCity: !!room.isCity,
             theme: room.theme || null,
             landmarks: room.landmarks || [],
+            roads: room.roads || null,
             tagline: room.tagline || null,
             emoji: room.emoji || null,
             // Phase 6 additions
@@ -509,6 +510,7 @@ export function registerSocketHandlers(deps) {
             isCity: !!room.isCity,
             theme: room.theme || null,
             landmarks: room.landmarks || [],
+            roads: room.roads || null,
             tagline: room.tagline || null,
             emoji: room.emoji || null,
             // Phase 6 additions
@@ -655,6 +657,7 @@ export function registerSocketHandlers(deps) {
             isCity: !!room.isCity,
             theme: room.theme || null,
             landmarks: room.landmarks || [],
+            roads: room.roads || null,
             tagline: room.tagline || null,
             emoji: room.emoji || null,
             // Phase 6 additions
@@ -1280,6 +1283,7 @@ export function registerSocketHandlers(deps) {
             isCity: !!room.isCity,
             theme: room.theme || null,
             landmarks: room.landmarks || [],
+            roads: room.roads || null,
             tagline: room.tagline || null,
             emoji: room.emoji || null,
             // Phase 6 additions
@@ -1601,6 +1605,7 @@ export function registerSocketHandlers(deps) {
             isCity: !!room.isCity,
             theme: room.theme || null,
             landmarks: room.landmarks || [],
+            roads: room.roads || null,
             tagline: room.tagline || null,
             emoji: room.emoji || null,
             // Phase 6 additions
@@ -1682,6 +1687,7 @@ export function registerSocketHandlers(deps) {
             isCity: !!room.isCity,
             theme: room.theme || null,
             landmarks: room.landmarks || [],
+            roads: room.roads || null,
             tagline: room.tagline || null,
             emoji: room.emoji || null,
             // Phase 6 additions
