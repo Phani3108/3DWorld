@@ -43,6 +43,7 @@ import { renderAvatarPortrait } from "./Avatar";
 import BazaarPanel, { bazaarOpenAtom } from "./BazaarPanel";
 import LibraryPanel, { libraryOpenAtom } from "./LibraryPanel";
 import QuestsPanel, { questsOpenAtom } from "./QuestsPanel";
+import TravelPanel, { travelOpenAtom } from "./TravelPanel";
 import soundManager from "../audio/SoundManager";
 import { isMobileAtom } from "../hooks/useMobile";
 
@@ -1414,6 +1415,7 @@ export const UI = () => {
   const [, setBazaarOpen] = useAtom(bazaarOpenAtom); // Phase 7G
   const [, setLibraryOpen] = useAtom(libraryOpenAtom); // Phase 7J
   const [, setQuestsOpen] = useAtom(questsOpenAtom);   // Phase 9B
+  const [, setTravelOpen] = useAtom(travelOpenAtom);   // Phase 9D
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const [storyComposerOpen, setStoryComposerOpen] = useState(false);
   const [vehiclePickerOpen, setVehiclePickerOpen] = useState(false);
@@ -1929,6 +1931,21 @@ export const UI = () => {
                   </button>
                 )}
 
+                {/* Phase 9D — Travel launcher — hidden on mobile, in overflow */}
+                {roomID && (
+                  <button
+                    className="hidden sm:flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer hover:bg-sky-50 transition-colors group shrink-0"
+                    onClick={() => {
+                      soundManager.play("button_click");
+                      setTravelOpen((v) => !v);
+                    }}
+                    title="Travel to another city"
+                  >
+                    <span className="text-xl sm:text-2xl leading-none">✈️</span>
+                    <span className="text-[10px] sm:text-xs text-sky-700 group-hover:text-sky-900 font-medium transition-colors">Travel</span>
+                  </button>
+                )}
+
                 {/* Overview toggle (Phase 7C.2) — hidden on mobile, in overflow */}
                 {roomID && (
                   <button
@@ -2028,6 +2045,7 @@ export const UI = () => {
                                 { emoji: "🛍️", label: "Bazaar", action: () => setBazaarOpen((v) => !v) },
                                 { emoji: "📚", label: "Library", action: () => setLibraryOpen((v) => !v) },
                                 { emoji: "🎯", label: "Quests", action: () => setQuestsOpen((v) => !v) },
+                                { emoji: "✈️", label: "Travel", action: () => setTravelOpen((v) => !v) },
                                 { emoji: cameraOverview ? "📍" : "🗺️", label: cameraOverview ? "Close" : "Overview", action: () => setCameraOverview((v) => !v) },
                                 { emoji: "🛺", label: "Ride", action: () => setVehiclePickerOpen((v) => !v) },
                                 { emoji: "📌", label: "Story", action: () => setStoryComposerOpen(true) },

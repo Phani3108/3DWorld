@@ -178,8 +178,11 @@ export const listConversationsForUser = (userId, opts = {}) => {
  */
 export const tagFrequencies = (opts = {}) => {
   const limit = Math.max(1, Math.min(200, opts.limit || 30));
-  const cityId  = opts.cityId  || null;
-  const venueId = opts.venueId || null;
+  // Accept both {cityId,venueId} and {city,venue} for parity with
+  // listConversations() — the older naming inconsistency silently
+  // produced unfiltered results.
+  const cityId  = opts.cityId  || opts.city  || null;
+  const venueId = opts.venueId || opts.venue || null;
   const counts = new Map();
   for (const e of conversations) {
     if (cityId  && e.cityId  !== cityId)  continue;
@@ -197,3 +200,10 @@ export const tagFrequencies = (opts = {}) => {
 
 /** @returns {number} total archived entries (for /health or admin UIs) */
 export const conversationCount = () => conversations.length;
+
+/**
+ * Test-only — drops the in-memory archive. Production callers never use
+ * this; it exists so beforeEach hooks can reset state without re-import
+ * gymnastics. Does not delete the on-disk file (tests handle that).
+ */
+export const _clearForTests = () => { conversations = []; };

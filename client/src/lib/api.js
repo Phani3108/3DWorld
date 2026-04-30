@@ -125,3 +125,8 @@ export const buyTravelTicket = (userId, cityId) =>
   postJSON("/api/v1/travel/buy", { userId, cityId });
 export const fetchDailyDigest = (cityId) =>
   getJSON(cityId ? `/api/v1/digest?city=${encodeURIComponent(cityId)}` : "/api/v1/digest");
+
+// ── Phase 9G: Live events ──────────────────────────────────────────
+export const fetchEventsAtVenue = (venueId) =>
+  getJSON(`/api/v1/events?venue=${encodeURIComponent(venueId)}`);
+export const fetchLiveEvents = () => getJSON("/api/v1/events?live=1");

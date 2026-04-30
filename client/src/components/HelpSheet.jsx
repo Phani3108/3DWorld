@@ -83,7 +83,7 @@ export const HelpSheet = () => {
                   <Row k="🛺 top bar" v="switch vehicle (walk → cycle → auto → bike → car)" />
                 </Section>
 
-                <Section title="� Mobile controls">
+                <Section title="📱 Mobile controls">
                   <Row k="tap ground" v="walk there" />
                   <Row k="drag one finger" v="rotate camera" />
                   <Row k="pinch two fingers" v="zoom in / out" />
@@ -91,7 +91,7 @@ export const HelpSheet = () => {
                   <Row k="+/− buttons" v="zoom in / out" />
                 </Section>
 
-                <Section title="�👥 Meet characters">
+                <Section title="👥 Meet characters">
                   <Row k="hover a person" v="wave · follow · profile · task · teach · invite" />
                   <Row k="emoji chips above head" v="their expertise / persona tags" />
                   <Row k="click name tag" v="open character menu (DM, bond, etc.)" />

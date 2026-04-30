@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAtom } from "jotai";
 import {
@@ -11,7 +11,7 @@ import {
   languageAtom,
   llmStatusAtom,
 } from "./SocketManager";
-import { buyFood, askAgent } from "../lib/api";
+import { buyFood, askAgent, fetchUserQuests, acceptQuest, fetchEventsAtVenue } from "../lib/api";
 
 /**
  * VenueInfoCard — auto-slides in from the bottom-right on `venueEnter`.
@@ -32,6 +32,58 @@ export const VenueInfoCard = () => {
   const [factsOpen, setFactsOpen] = useState(false);
   const [buyMsg, setBuyMsg] = useState(null);
   const [askMsg, setAskMsg] = useState(null);
+
+  // Phase 9B discovery — quests offered by this venue's host that the
+  // local user hasn't accepted/completed yet. Re-checked on venue change.
+  const [hostQuests, setHostQuests] = useState([]);
+  const [questBusy, setQuestBusy] = useState(false);
+  useEffect(() => {
+    if (!venue) { setHostQuests([]); return; }
+    let cancelled = false;
+    const userId = localStorage.getItem("3dworld_user_id");
+    if (!userId) return;
+    fetchUserQuests(userId)
+      .then((data) => {
+        if (cancelled || !data) return;
+        const offered = (data.offers || [])
+          .filter((q) => {
+            // venue.host points to a host's resident id; filter offers
+            // from any resident whose homeVenueId matches this venue.
+            // Since the offer record carries giverId, fall back to that.
+            return q.giverId === venue.host;
+          });
+        setHostQuests(offered);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [venue?.id]);
+
+  // Phase 9G — live event lookup for the current venue.
+  const [liveEvent, setLiveEvent] = useState(null);
+  useEffect(() => {
+    if (!venue) { setLiveEvent(null); return; }
+    let cancelled = false;
+    fetchEventsAtVenue(venue.id)
+      .then((data) => { if (!cancelled) setLiveEvent(data?.liveNow || null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [venue?.id]);
+
+  const handleAcceptQuest = async (questId) => {
+    const userId = localStorage.getItem("3dworld_user_id");
+    if (!userId) return;
+    setQuestBusy(true);
+    try {
+      await acceptQuest(userId, questId);
+      setAskMsg({ type: "ok", text: "Quest accepted — progress will tick as you play." });
+      setHostQuests((prev) => prev.filter((q) => q.id !== questId));
+    } catch (e) {
+      setAskMsg({ type: "error", text: e.message || "Couldn't accept quest." });
+    } finally {
+      setQuestBusy(false);
+      setTimeout(() => setAskMsg(null), 3000);
+    }
+  };
 
   // If no venue, or user hid the card, render nothing (state clears on venueExit)
   if (!venue || hidden) return null;
@@ -147,6 +199,17 @@ export const VenueInfoCard = () => {
                 {venue.ambience?.music && (
                   <span className="text-pink-300 bg-pink-500/20 px-1.5 py-0.5 rounded">🎵 ambience</span>
                 )}
+                {/* Phase 9G — LIVE NOW chip. When a scheduled event is
+                    currently running at this venue, light it up so players
+                    feel "I should be here right now". */}
+                {liveEvent && (
+                  <span
+                    className="text-emerald-200 bg-emerald-500/30 px-1.5 py-0.5 rounded font-bold animate-pulse"
+                    title={liveEvent.blurb}
+                  >
+                    {liveEvent.emoji || "🟢"} LIVE · {liveEvent.title}
+                  </span>
+                )}
                 {/* Phase 8E — LLM status chip. Shows ⚡ Live when a real
                     provider is configured, 🤖 Stub when running without
                     an API key (still demonstrable). */}
@@ -181,6 +244,38 @@ export const VenueInfoCard = () => {
               <span className="text-amber-400">💬 </span>
               "{venue.conversation.defaultGreeting}"
             </p>
+          </div>
+        )}
+
+        {/* Phase 9B — Host quest chip. Solves the #1 onboarding gap by
+            making "Farah has a quest for you" visible the moment you walk
+            into Paradise, without requiring the player to discover the
+            QuestsPanel. Tapping accepts the quest in-place. */}
+        {hostQuests.length > 0 && (
+          <div className="px-4 py-2 bg-emerald-500/10 border-y border-emerald-400/30">
+            {hostQuests.slice(0, 1).map((q) => (
+              <div key={q.id} className="flex items-center gap-2">
+                <span className="text-base leading-none">🎯</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[9px] uppercase tracking-wider text-emerald-300/80">
+                    Quest from the host
+                  </div>
+                  <div className="text-xs font-semibold text-emerald-100 truncate">
+                    {q.title}
+                  </div>
+                  <div className="text-[10px] text-emerald-200/70 truncate">
+                    +{q.reward?.coins || 0} 🪙 · +{q.reward?.xp || 0} XP · +{q.reward?.reputation || 0} rep
+                  </div>
+                </div>
+                <button
+                  disabled={questBusy}
+                  onClick={() => handleAcceptQuest(q.id)}
+                  className="shrink-0 text-[11px] bg-emerald-500/30 hover:bg-emerald-500/50 text-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-400/50 font-semibold transition-colors disabled:opacity-50"
+                >
+                  Accept
+                </button>
+              </div>
+            ))}
           </div>
         )}
 

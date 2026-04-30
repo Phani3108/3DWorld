@@ -25,6 +25,7 @@ import FoodPanel from "./components/FoodPanel";
 import BazaarPanel from "./components/BazaarPanel";
 import LibraryPanel from "./components/LibraryPanel";
 import QuestsPanel from "./components/QuestsPanel";
+import TravelPanel from "./components/TravelPanel";
 import VenueInfoCard from "./components/VenueInfoCard";
 import LanguageBadge from "./components/LanguageBadge";
 import { HelpSheet } from "./components/HelpSheet";
@@ -233,6 +234,7 @@ function App() {
       {loaded && <BazaarPanel />}
       {loaded && <LibraryPanel />}
       {loaded && <QuestsPanel />}
+      {loaded && <TravelPanel />}
       {loaded && <VenueInfoCard />}
       {loaded && <LanguageBadge />}
       {loaded && <HelpSheet />}

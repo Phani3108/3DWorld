@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAtom } from "jotai";
 import { cityAtom, charactersAtom, userAtom } from "./SocketManager";
 import { postMemory } from "../lib/api";
@@ -15,6 +15,9 @@ export const ScreenshotButton = () => {
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState(false);
   const [toast, setToast] = useState(null);
+  // Keep `capture` reachable from the window-event listener below without
+  // causing a re-bind on every render.
+  const captureRef = useRef(null);
 
   const capture = async () => {
     if (busy) return;
@@ -66,6 +69,17 @@ export const ScreenshotButton = () => {
       setBusy(false);
     }
   };
+  captureRef.current = capture;
+
+  // Phase 7E.1 — VenueInfoCard's hotspot affordance dispatches a window
+  // event when a player clicks "📸 Take a photo" on a pose_together
+  // hotspot. Listen for it so all 7 tourist venues + 6 in-venue photo
+  // spots actually trigger a capture.
+  useEffect(() => {
+    const handler = () => { captureRef.current && captureRef.current(); };
+    window.addEventListener("3dworld:takeScreenshot", handler);
+    return () => window.removeEventListener("3dworld:takeScreenshot", handler);
+  }, []);
 
   return (
     <>

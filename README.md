@@ -7,6 +7,23 @@ Walk into Paradise Biryani House in Hyderabad and Farah will tell you why dum co
 > Open source · local-first · demo-ready · LLM-optional.
 > Live demo: **[3dworld1.vercel.app](https://3dworld1.vercel.app)** · Source: **[github.com/Phani3108/3DWorld](https://github.com/Phani3108/3DWorld)**
 
+![3D World — animated tour](docs/screenshots/hero.gif)
+
+> _Drop your own captures into [`docs/screenshots/`](docs/screenshots/CAPTURE_GUIDE.md) — the README references them by stable filenames._
+
+---
+
+## 📺 At a glance
+
+| | |
+|---|---|
+| ![World map](docs/screenshots/01-world-map.png) | ![Paradise venue](docs/screenshots/02-paradise-hyderabad.png) |
+| **All 7 cities, one map** — pick a pin, fly in. | **Walk in, the world greets you.** Quest chips, hotspots, the host's voice. |
+| ![Conversation](docs/screenshots/03-conversation.png) | ![Knowledge bulletin](docs/screenshots/04-knowledge-bulletin.png) |
+| **Ask anyone anything.** Real-LLM, canned, or webhook — all in-character. | **Knowledge is searchable.** Filter every Q&A by tag, venue, city. |
+| ![Quests](docs/screenshots/05-quests-panel.png) | ![Travel](docs/screenshots/06-travel-panel.png) |
+| **Quests** turn cultural curiosity into goals. | **Travel** prices scale with reputation in the destination city. |
+
 ---
 
 ## ✨ What's inside
@@ -282,7 +299,15 @@ All endpoints return JSON. None require auth in local dev (`OPEN_ACCESS=1`).
 
 | Endpoint | What |
 |---|---|
-| `GET /api/v1/llm/status` | Active provider, model, guard stats, memory stats |
+| `GET /api/v1/llm/status` | Active provider, model, guard stats, memory stats, canned-source info |
+
+### Live events (Phase 9G)
+
+| Endpoint | What |
+|---|---|
+| `GET /api/v1/events` | Full schedule across all 7 cities |
+| `GET /api/v1/events?live=1` | Only events live right now (server-local clock) |
+| `GET /api/v1/events?city=&venue=` | Filter by city or venue (with `liveNow` for venue) |
 
 ---
 
@@ -314,6 +339,8 @@ More details in [COMMUNITY_SELF_HOST.md](COMMUNITY_SELF_HOST.md).
 | `OPENAI_API_KEY` | Turn on real GPT answers | — |
 | `LLM_PROVIDER` | Force `anthropic` / `openai` / `stub` | auto |
 | `LLM_MODEL` | Override the default model | provider default |
+| `CANNED_BANK_URL` | Route canned-answer lookups through a private remote API (Phase 9F). Falls back to local on miss/error. | — (uses local catalogs) |
+| `CANNED_BANK_KEY` | API key sent as `x-api-key` to the canned-bank service | — |
 
 ### Client (`client/.env`)
 
@@ -382,6 +409,8 @@ Phases shipped so far:
 - **7E.6 / 7E.7** — searchable conversation archive + 🧠 Knowledge bulletin tab
 - **8** — real-LLM integration (Anthropic / OpenAI / stub), persona prompts, rolling memory, cost guards, graceful canned fallback
 - **9** — quests (14), reputation per city, cross-city travel tickets, daily digest
+- **9F** — canned-answer service indirection (foundation for monetizing the 168+42 hand-written corpus behind a private API)
+- **9G** — live events: 12 scheduled resident gatherings with XP/rep boosts and a 🟢 LIVE NOW chip in VenueInfoCard
 
 Next, loosely planned:
 

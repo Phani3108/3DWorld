@@ -16,6 +16,7 @@ import { findVenueAt, cityIdFromRoom } from "./venueService.js";
 import { allResidentsPublic, publicResident, residentsInCity, getResident, residentsByExpertise } from "./shared/residentCatalog.js";
 import { EXPERTISE_TAGS, EXPERTISE_GROUPS, getExpertise, hydrateExpertiseTags } from "./shared/expertiseCatalog.js";
 import { matchResidentCannedAnswer } from "./shared/residentQA.js";
+import { matchCanned } from "./cannedAnswerService.js";
 import { appendConversation, listConversations, listConversationsForUser, tagFrequencies } from "./conversationLog.js";
 import { answerAsResident } from "./llm/llmService.js";
 import { getActiveProvider, listProviders } from "./llm/providerCatalog.js";
@@ -1300,6 +1301,30 @@ Want to build your own space? Each bot gets **one room** — here's how:
       });
     }
 
+    // Live events (Phase 9G) — scheduled resident gatherings + a "live now" view
+    if (req.method === "GET" && req.url?.startsWith("/api/v1/events")) {
+      const u = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      const { allEventsPublic, eventsInCity, eventsAtVenue, allLiveEvents, liveEventAtVenue } =
+        await import("./shared/eventsCatalog.js");
+      const live = u.searchParams.get("live") === "1";
+      const city = u.searchParams.get("city");
+      const venue = u.searchParams.get("venue");
+      if (live) {
+        return json(res, 200, allLiveEvents().map((l) => ({
+          ...l.event, msRemaining: l.msRemaining,
+        })));
+      }
+      if (venue) {
+        const liveOne = liveEventAtVenue(venue);
+        return json(res, 200, {
+          schedule: eventsAtVenue(venue),
+          liveNow: liveOne ? { ...liveOne.event, msRemaining: liveOne.msRemaining } : null,
+        });
+      }
+      if (city) return json(res, 200, eventsInCity(city));
+      return json(res, 200, allEventsPublic());
+    }
+
     // Daily digest (Phase 9E) — snapshot of the last 24 h of teaching,
     // quests, purchases, and ambient momentum. Used by a "What happened
     // today?" card at login and as a demo talking-point surface.
@@ -1359,11 +1384,13 @@ Want to build your own space? Each bot gets **one room** — here's how:
     // LLM status (Phase 8E) — powers the ⚡ badge + admin debugging
     if (req.method === "GET" && req.url === "/api/v1/llm/status") {
       const active = getActiveProvider();
+      const { cannedAnswerSourceInfo } = await import("./cannedAnswerService.js");
       return json(res, 200, {
         active: { id: active.id, model: active.model, stub: active.id === "stub" },
         providers: listProviders(),
         memory: memoryStats(),
         guards: guardStats(),
+        cannedSource: cannedAnswerSourceInfo(),
       });
     }
 
@@ -1862,7 +1889,14 @@ Want to build your own space? Each bot gets **one room** — here's how:
         // Phase 8B — before falling to canned, try the LLM path for this
         // resident. This lets the SAME code path produce real-LLM answers
         // when an API key is configured, and fall back transparently.
-        if (residentHit?.resident?.id) {
+        //
+        // BUGFIX — when no real provider is configured (active === stub)
+        // we skip the LLM entirely so the carefully written canned banks
+        // (Phase 7E.4: 168 venue + 42 personal answers) actually fire on
+        // the live demo. Stub mode would otherwise hijack every Ask with
+        // a generic echo that exposes the demo seam to users.
+        const llmActive = getActiveProvider();
+        if (residentHit?.resident?.id && llmActive.id !== "stub") {
           const llm = await answerAsResident({
             residentId: residentHit.resident.id,
             userId:     fromUserId,
@@ -1937,10 +1971,14 @@ Want to build your own space? Each bot gets **one room** — here's how:
           // If LLM failed, fall through to canned — don't surface the reason.
         }
 
-        const personalMatch = residentHit?.resident?.id
-          ? matchResidentCannedAnswer(residentHit.resident.id, question)
-          : null;
-        const match = personalMatch || matchCannedAnswer(venue, question);
+        // Phase 9F — single indirection layer. Default behaviour pulls
+        // from the same local catalogs as before; setting CANNED_BANK_URL
+        // routes lookups through a private remote API instead.
+        const match = await matchCanned({
+          residentId: residentHit?.resident?.id || null,
+          venueId:    venue.id,
+          question,
+        });
         if (match) {
           // Prefer the in-world resident's character id so the bubble appears
           // above them; fall back to a synthetic venue:<id> if no resident.
@@ -1999,12 +2037,18 @@ Want to build your own space? Each bot gets **one room** — here's how:
             channel: "canned",
           });
           // Phase 7H — learner gets XP for asking; resident gets XP for teaching.
+          // Phase 9G — if a live event is running here, apply the bonus
+          // multipliers from eventsCatalog so showing up at the right time
+          // genuinely matters.
           try {
             const { awardXp } = await import("./userStore.js");
-            await awardXp(fromUserId, "ask");
-            if (residentHit?.resident?.id) await awardXp(residentHit.resident.id, "teach");
-            // Phase 9C — small reputation nudge on every ask-in-venue.
-            addReputation(fromUserId, venue.cityId, 2);
+            const { liveEventAtVenue } = await import("./shared/eventsCatalog.js");
+            const live = liveEventAtVenue(venue.id);
+            const bonusXp  = live?.event?.boostXp  || 0;
+            const bonusRep = live?.event?.boostRep || 0;
+            await awardXp(fromUserId, "ask", bonusXp);
+            if (residentHit?.resident?.id) await awardXp(residentHit.resident.id, "teach", bonusXp);
+            addReputation(fromUserId, venue.cityId, 2 + bonusRep);
           } catch {}
           // Phase 9B — fire quest events (ask-by-tag for every resident
           // expertise tag + ask-by-resident).

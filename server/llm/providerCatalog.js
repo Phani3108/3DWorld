@@ -137,19 +137,52 @@ const openaiProvider = {
 };
 
 // ── Stub (no network) ────────────────────────────────────────────────
-// Returns a plausible-looking deterministic reply, tagged with the provider
-// so demos without API keys can still visibly exercise the "LLM answered"
-// code path (separate from canned).
+// When someone explicitly forces `LLM_PROVIDER=stub` for testing the
+// real-LLM code path without burning credits, the stub still has to
+// return *something*. Earlier versions echoed "(Real-LLM answer would
+// go here…)" which is ugly demo glue. Instead we now pull a line from
+// the resident's `defaultLines` (parsed out of the system prompt's
+// "Example lines in your voice: …" segment) so stubbed answers sound
+// like the resident's voice.
+//
+// Note: this provider is NEVER selected for the live demo path —
+// httpRoutes.js's ask handler explicitly skips LLM when getActiveProvider()
+// is "stub" so the canned banks (Phase 7E.4) fire instead. This branch
+// only runs for tests + explicit dev opt-in.
+const STUB_FALLBACK_LINES = [
+  "Tell me more — I love this kind of question.",
+  "Funny you ask. Sit down for a minute.",
+  "Good question, friend. Let me think.",
+];
+
+const extractDefaultLines = (system) => {
+  // System prompt format from llmService.js:
+  //   `Example lines in your voice: "L1" / "L2" / "L3".`
+  const m = system.match(/Example lines in your voice:\s*(.+?)\.(?:\s|$)/);
+  if (!m) return null;
+  const out = [];
+  const re = /"([^"]+)"/g;
+  let next;
+  while ((next = re.exec(m[1])) !== null) out.push(next[1]);
+  return out.length > 0 ? out : null;
+};
+
+const extractPersonaName = (system) => {
+  const m = system.match(/You are\s+([^,.]+?)[,.]/i);
+  return m ? m[1].trim() : null;
+};
+
 const stubProvider = {
   id: "stub",
-  model: "stub-echo",
-  async answer({ system, user }) {
-    // Echo the question inside the persona's voice — so the demo still
-    // feels consistent and the archive tags still populate.
-    const personaCue = (system.match(/You are\s+([^.]+?)\.(?:\s|$)/i) || [])[1] || "your host";
+  model: "stub-default-lines",
+  async answer({ system }) {
+    const lines = extractDefaultLines(system) || STUB_FALLBACK_LINES;
+    const text = lines[Math.floor(Math.random() * lines.length)];
+    const name = extractPersonaName(system);
+    // Occasionally prefix the speaker for a touch of warmth, mostly not.
     return {
       ok: true,
-      text: `${personaCue} here — you asked "${user.slice(0, 120)}${user.length > 120 ? "…" : ""}". (Real-LLM answer would go here once LLM_API_KEY is set.)`,
+      text: name && Math.random() < 0.25 ? `${name}: ${text}` : text,
       usage: null,
       stub: true,
     };
