@@ -26,8 +26,9 @@ This checklist tracks the minimum work needed to publish this repository safely 
 
 ## 4. Community and Contribution Workflow
 
-- [x] Add GitHub issue templates (bug report, feature request).
-- [x] Add pull request template.
+- [ ] Add GitHub issue templates (bug report, feature request). _(Marked done previously, but no `.github/ISSUE_TEMPLATE` exists.)_
+- [ ] Add pull request template. _(Not present.)_
+- [x] CI: `.github/workflows/ci.yml` runs server tests + client build on every push/PR.
 
 ## 5. Verification Before Publish
 

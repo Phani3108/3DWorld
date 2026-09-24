@@ -21,6 +21,9 @@ import fs from "fs";
 import { atomicWriteJson, readJsonSafe } from "./persistence.js";
 import { getQuest, matchEvent, allQuestsPublic } from "./shared/questCatalog.js";
 
+// Ids arrive from requests; never let one address Object.prototype.
+const isSafeKey = (k) => typeof k === "string" && k.length > 0 && k !== "__proto__" && k !== "constructor" && k !== "prototype";
+
 const QUEST_STATE_FILE = "userQuests.json";
 // { [userId]: { active: {...}, completed: {...} } }
 let state = readJsonSafe(QUEST_STATE_FILE, {});
@@ -38,7 +41,7 @@ const persist = () => {
 };
 
 const ensureUserSlot = (userId) => {
-  if (!state[userId]) state[userId] = { active: {}, completed: {} };
+  if (!Object.hasOwn(state, userId)) state[userId] = { active: {}, completed: {} };
   if (!state[userId].active) state[userId].active = {};
   if (!state[userId].completed) state[userId].completed = {};
   return state[userId];
@@ -49,7 +52,7 @@ const ensureUserSlot = (userId) => {
  * `{ ok: false, error }`.
  */
 export const acceptQuest = (userId, questId) => {
-  if (!userId || !questId) return { ok: false, error: "missing_fields" };
+  if (!isSafeKey(userId) || !isSafeKey(questId)) return { ok: false, error: "missing_fields" };
   const quest = getQuest(questId);
   if (!quest) return { ok: false, error: "quest_not_found" };
   const slot = ensureUserSlot(userId);
@@ -66,7 +69,7 @@ export const acceptQuest = (userId, questId) => {
  * + push a toast/feed entry).
  */
 export const tickEvent = (userId, event) => {
-  if (!userId || !event) return [];
+  if (!isSafeKey(userId) || !event) return [];
   const slot = ensureUserSlot(userId);
   const completed = [];
   for (const [questId, st] of Object.entries(slot.active)) {
@@ -96,7 +99,7 @@ export const tickEvent = (userId, event) => {
  * metadata with per-user progress state.
  */
 export const listUserQuests = (userId) => {
-  const slot = state[userId] || { active: {}, completed: {} };
+  const slot = (isSafeKey(userId) && Object.hasOwn(state, userId) && state[userId]) || { active: {}, completed: {} };
   const active = Object.entries(slot.active).map(([id, st]) => {
     const quest = getQuest(id);
     if (!quest) return null;
@@ -117,7 +120,7 @@ export const listUserQuests = (userId) => {
  * Raw state getter — used by the ProfileCard stat projection.
  */
 export const questCounts = (userId) => {
-  const slot = state[userId] || { active: {}, completed: {} };
+  const slot = (isSafeKey(userId) && Object.hasOwn(state, userId) && state[userId]) || { active: {}, completed: {} };
   return {
     active:    Object.keys(slot.active).length,
     completed: Object.keys(slot.completed).length,

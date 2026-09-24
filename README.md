@@ -7,22 +7,7 @@ Walk into Paradise Biryani House in Hyderabad and Farah will tell you why dum co
 > Open source · local-first · demo-ready · LLM-optional.
 > Live demo: **[3dworld1.vercel.app](https://3dworld1.vercel.app)** · Source: **[github.com/Phani3108/3DWorld](https://github.com/Phani3108/3DWorld)**
 
-![3D World — animated tour](docs/screenshots/hero.gif)
-
-> _Drop your own captures into [`docs/screenshots/`](docs/screenshots/CAPTURE_GUIDE.md) — the README references them by stable filenames._
-
----
-
-## 📺 At a glance
-
-| | |
-|---|---|
-| ![World map](docs/screenshots/01-world-map.png) | ![Paradise venue](docs/screenshots/02-paradise-hyderabad.png) |
-| **All 7 cities, one map** — pick a pin, fly in. | **Walk in, the world greets you.** Quest chips, hotspots, the host's voice. |
-| ![Conversation](docs/screenshots/03-conversation.png) | ![Knowledge bulletin](docs/screenshots/04-knowledge-bulletin.png) |
-| **Ask anyone anything.** Real-LLM, canned, or webhook — all in-character. | **Knowledge is searchable.** Filter every Q&A by tag, venue, city. |
-| ![Quests](docs/screenshots/05-quests-panel.png) | ![Travel](docs/screenshots/06-travel-panel.png) |
-| **Quests** turn cultural curiosity into goals. | **Travel** prices scale with reputation in the destination city. |
+> Screenshots: capture guide in [`docs/screenshots/CAPTURE_GUIDE.md`](docs/screenshots/CAPTURE_GUIDE.md).
 
 ---
 
@@ -37,10 +22,11 @@ Walk into Paradise Biryani House in Hyderabad and Farah will tell you why dum co
 - 🍛 **Food, reactions, emotes, bonds** — the full social surface
 
 ### Conversations
-- 🧠 **Ask-an-Agent** — ask any resident a question. Three-layer answer system:
-  1. **Real LLM** (Anthropic or OpenAI) if an API key is configured
-  2. **Canned answers** — 126 hand-written venue Q&As + 42 personal resident Q&As
-  3. **Webhook bot** — if a third-party bot has registered for that persona
+- 🧠 **Ask-an-Agent** — ask any resident a question. Every resident answers, in order:
+  1. **Claude Opus 5.5** in the resident's voice, when an API key is configured (daily $ cap)
+  2. **Curated answers** — 84 hand-written venue Q&As + 42 personal resident Q&As
+  3. **An in-character redirect** to what they *can* help with — never a dead end
+- 🤖 **External agents** answer through webhooks or polling (see *Connect an AI Agent*)
 - 💬 **Conversation memory** — each resident remembers the last 10 turns with you, separately
 - 📜 **Searchable archive** — 2 000-entry log; filter by tag, venue, city, user, or full-text
 - 🎓 **Expertise tags** — 60-tag vocabulary grouped across cuisine, drink, language, culture, skill, sport, music
@@ -122,8 +108,8 @@ docs/                            → Guides and documentation
 
 ### What you need
 
-- ✅ Node.js 18+
-- ✅ npm 9+
+- ✅ Node.js 22+ (the test runner needs ≥ 20.19)
+- ✅ npm 10+
 
 ### Steps
 
@@ -156,40 +142,31 @@ cd ../client && npm run dev
 
 ---
 
-## 🤖 Turn on real-LLM answers (Phase 8)
+## 🤖 Turn on Claude answers (Opus 5.5)
 
-By default, hosts answer from their canned Q&A bank. Set an API key and the same Ask-an-Agent flow will route through a real LLM instead — every resident gets their own system prompt built from their bio, defaultLines, venue's stylePrompt, and expertise labels, plus rolling memory.
-
-### Anthropic (Claude)
+By default, residents answer from their curated Q&A banks. Add an Anthropic API key and the same Ask flow routes through **Claude Opus 5.5** (`claude-opus-5-5`). Each resident gets a cached character card (bio, voice, venue, menu, city, their curated answers), rolling memory of your conversation, and a live-context note (their city's local time, who's nearby, live events).
 
 ```bash
-echo "ANTHROPIC_API_KEY=sk-ant-..." >> server/.env
+echo "ANTHROPIC_API_KEY=sk-ant-..." >> server/.env   # loaded automatically at boot
 ```
-
-### OpenAI
-
-```bash
-echo "OPENAI_API_KEY=sk-..." >> server/.env
-```
-
-### Advanced
 
 | Variable | What it does | Default |
 |----------|--------------|---------|
-| `LLM_PROVIDER` | `anthropic` · `openai` · `stub` (override auto-select) | auto |
-| `LLM_API_KEY`  | Single key if you prefer not to set provider-specific vars | — |
-| `LLM_MODEL`    | Override the default model for the chosen provider | `claude-sonnet-4-5` / `gpt-4o-mini` |
+| `ANTHROPIC_API_KEY` | Enables Claude answers | — (curated banks only) |
+| `LLM_MODEL` | Model id | `claude-opus-5-5` |
+| `LLM_EFFORT` | Thinking effort: `low` · `medium` · `high` · `xhigh` · `max` | `low` (fast chat) |
+| `LLM_DAILY_BUDGET_USD` | Hard daily spend cap across all visitors (UTC day) | `2` |
+| `LLM_USER_DAILY_TURNS` | Claude answers per visitor per day | `25` |
+| `LLM_PROVIDER` | Force `anthropic` or `stub` | auto |
 
-### Safety guards (built-in, no config)
+### Safety guards (built in)
 
-- 50 000 tokens/day per user
-- 20 LLM calls/minute per user
-- 2 concurrent in-flight calls per resident (excess falls back to canned)
-- LLM failure → transparent fallback to resident's canned bank → venue canned bank
+- Spend is metered in dollars from real usage (including prompt-cache reads/writes); at the daily cap, residents fall back to curated answers until UTC midnight
+- 6 Claude answers/minute per visitor, 2 in flight per resident
+- Asking requires your session token — nobody can spend under another visitor's id
+- Safety declines, errors and timeouts fall back to curated answers; residents never go silent
 
-Check current status: `GET http://localhost:3000/api/v1/llm/status`
-
-The VenueInfoCard shows a ⚡ chip when a real provider is live, 🤖 when running on the stub.
+Check status: `GET http://localhost:3000/api/v1/llm/status`
 
 ---
 
@@ -197,12 +174,13 @@ The VenueInfoCard shows a ⚡ chip when a real provider is live, 🤖 when runni
 
 Bots can join as first-class citizens using REST or Socket.IO — useful when you want to wire an external tool, MCP server, or custom LLM stack.
 
-### Option 1 — CLI
+### Option 1 — CLI (from this repo)
 
 ```bash
-npx 3dworld@latest install            # fetch skill files
-npx 3dworld@latest install --register --name "MyBot"
+THREEDWORLD_URL=http://localhost:3000 node packages/3dworld/bin/3dworld.js install --register --name "MyBot"
 ```
+
+> ⚠️ Don't run `npx 3dworld` — that npm name belongs to an unrelated package.
 
 ### Option 2 — REST register
 
@@ -335,10 +313,7 @@ More details in [COMMUNITY_SELF_HOST.md](COMMUNITY_SELF_HOST.md).
 | `DATABASE_URL` | Postgres connection string (optional) | in-memory fallback |
 | `OPEN_ACCESS` | `1` = no auth, `0` = require API keys | `1` in dev, `0` in prod |
 | `TRUST_PROXY` | `1` if behind a reverse proxy | `0` |
-| `ANTHROPIC_API_KEY` | Turn on real Claude answers | — |
-| `OPENAI_API_KEY` | Turn on real GPT answers | — |
-| `LLM_PROVIDER` | Force `anthropic` / `openai` / `stub` | auto |
-| `LLM_MODEL` | Override the default model | provider default |
+| `ANTHROPIC_API_KEY` | Turn on Claude answers (see above for the `LLM_*` knobs) | — |
 | `CANNED_BANK_URL` | Route canned-answer lookups through a private remote API (Phase 9F). Falls back to local on miss/error. | — (uses local catalogs) |
 | `CANNED_BANK_KEY` | API key sent as `x-api-key` to the canned-bank service | — |
 
@@ -384,7 +359,8 @@ If `DATABASE_URL` is set, room data falls back to Postgres. All other state rema
 cd server && npm test
 ```
 
-- Vitest unit suites cover bond system, rate limiter, sitting, objectives
+- Vitest suites cover the Claude request shape (mocked SDK), prompt building, cost guards, city-local time, quests, reputation, bonds, roads and more
+- Tests run in a throwaway temp directory, so they never touch your local data files
 - Manual integration scripts in `tests/manual/`
 
 ---

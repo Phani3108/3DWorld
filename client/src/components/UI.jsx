@@ -2,7 +2,6 @@ import { atom, useAtom } from "jotai";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import * as THREE from "three";
 
-import { AvatarCreator } from "@readyplayerme/react-avatar-creator";
 import { motion, AnimatePresence } from "framer-motion";
 import { GLTFLoader } from "three-stdlib";
 import { roomItemsAtom } from "./Room";
@@ -190,10 +189,6 @@ const AVATAR_URLS = [
   "/models/sillyNubCat.glb?variant=penguin",
   "/models/sillyNubCat.glb?variant=tiger",
   "/models/sillyNubCat.glb?variant=monkey",
-  "https://models.readyplayer.me/64f0265b1db75f90dcfd9e2c.glb",
-  "https://models.readyplayer.me/663833cf6c79010563b91e1b.glb",
-  "https://models.readyplayer.me/64bfa15f0e72c63d7c3934a6.glb",
-  "https://models.readyplayer.me/64a3f54c1d64e9f3dbc832ac.glb",
 ];
 
 const AVATAR_LABELS = {
@@ -204,13 +199,7 @@ const AVATAR_LABELS = {
   "/models/sillyNubCat.glb?variant=monkey": { label: "Monkey", emoji: "🐵" },
 };
 
-// Helper to get a 2D render thumbnail from a Ready Player Me avatar URL
-const getAvatarThumbnail = (glbUrl) => {
-  if (!glbUrl) return "";
-  return glbUrl.split("?")[0].replace(".glb", ".png") + "?size=256";
-};
-
-const CharacterSelectorModal = ({ onClose, currentAvatarUrl, onSelectAvatar, onCustomAvatar }) => {
+const CharacterSelectorModal = ({ onClose, currentAvatarUrl, onSelectAvatar }) => {
   const [localThumbs, setLocalThumbs] = useState({});
 
   useEffect(() => {
@@ -261,9 +250,7 @@ const CharacterSelectorModal = ({ onClose, currentAvatarUrl, onSelectAvatar, onC
             {AVATAR_URLS.map((url, idx) => {
               const baseUrl = url.split("?")[0];
               const isActive = currentAvatarUrl?.split("?")[0] === baseUrl && (currentAvatarUrl === url || (!currentAvatarUrl.includes("variant=") && !url.includes("variant=")));
-              const isLocalModel = url.startsWith("/");
               const animalInfo = AVATAR_LABELS[url];
-              const thumbUrl = isLocalModel ? null : getAvatarThumbnail(url);
               const label = animalInfo ? animalInfo.label : `Character ${idx + 1}`;
               const isVariant = url.includes("variant=");
               return (
@@ -296,14 +283,7 @@ const CharacterSelectorModal = ({ onClose, currentAvatarUrl, onSelectAvatar, onC
                         </div>
                       )
                     ) : (
-                      <img
-                        src={thumbUrl}
-                        alt={label}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = "none";
-                        }}
-                      />
+                      <span className="text-sm font-semibold text-gray-600">{label}</span>
                     )}
                   </div>
                   {isActive && (
@@ -317,18 +297,7 @@ const CharacterSelectorModal = ({ onClose, currentAvatarUrl, onSelectAvatar, onC
               );
             })}
           </div>
-          <div className="border-t border-gray-100 mt-4 pt-4">
-            <button
-              onClick={() => { onCustomAvatar(); onClose(); }}
-              className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
-              </svg>
-              Create Custom Avatar
-            </button>
-          </div>
-          <p className="text-xs text-gray-400 text-center mt-3">Select a character or create a custom one</p>
+          <p className="text-xs text-gray-500 text-center mt-3">More characters are on the way.</p>
         </div>
       </motion.div>
     </div>
@@ -407,8 +376,10 @@ const BotConnectModal = ({ onClose }) => {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const npxCommand = "npx 3dworld@latest install-3dworld";
   const skillMdUrl = `${SERVER_URL}/skill.md`;
+  // Fetch the skill file straight from this server (the npm name "3dworld"
+  // belongs to an unrelated package, so no npx installer).
+  const installCommand = `curl -s ${skillMdUrl}`;
   const manualText = `Read ${skillMdUrl} and follow the instructions to join 3D World`;
 
   return (
@@ -445,7 +416,7 @@ const BotConnectModal = ({ onClose }) => {
                   : "bg-[#2a2a3e] text-gray-400 hover:text-gray-200"
               }`}
             >
-              3dhub
+              curl
             </button>
             <button
               onClick={() => { soundManager.play("tab_switch"); setActiveTab("manual"); }}
@@ -466,10 +437,10 @@ const BotConnectModal = ({ onClose }) => {
             </p>
             <div className="bg-[#0f0f0f] border border-[#333] rounded-lg p-3 relative group">
               <pre className="text-emerald-400 text-sm font-mono whitespace-pre-wrap break-all pr-16">
-                {activeTab === "3dhub" ? npxCommand : manualText}
+                {activeTab === "3dhub" ? installCommand : manualText}
               </pre>
               <button
-                onClick={() => copyText(activeTab === "3dhub" ? npxCommand : manualText, "cmd")}
+                onClick={() => copyText(activeTab === "3dhub" ? installCommand : manualText, "cmd")}
                 className="absolute top-2 right-2 bg-[#2a2a3e] hover:bg-[#3a3a4e] text-gray-300 rounded px-2.5 py-1 text-xs transition-colors"
               >
                 {copied === "cmd" ? "Copied!" : "Copy"}
@@ -547,7 +518,7 @@ const HelpModal = ({ onClose }) => {
     bots: [
       { key: "AI Agents", desc: "Bots are AI-powered characters that can chat and sell items" },
       { key: "Connect a Bot", desc: "Click the bot icon (purple) and follow the instructions" },
-      { key: "3D World", desc: "Run the npx command to install and connect your agent" },
+      { key: "3D World", desc: "Give your agent this server's /skill.md and it connects itself" },
       { key: "Manual Setup", desc: "Use the manual tab for custom bot integration via your configured server URL" },
       { key: "Bot Badges", desc: "Bots display a blue 'Bot' badge on their profile card" },
     ],
@@ -1382,7 +1353,6 @@ export const UI = () => {
     draggedItemRotationAtom
   );
   const [roomItems, setRoomItems] = useAtom(roomItemsAtom);
-  const [avatarMode, setAvatarMode] = useState(false);
   const [botConnectMode, setBotConnectMode] = useState(false);
   const [roomSelectorMode, setRoomSelectorMode] = useState(false);
   const [showRoomSelector, setShowRoomSelector] = useAtom(showRoomSelectorAtom);
@@ -1469,7 +1439,8 @@ export const UI = () => {
   }, [showRoomSelector]);
 
   const handleSelectCharacter = (url) => {
-    const newUrl = url.startsWith("/") ? url : url + (url.includes("?") ? "&" : "?") + "meshlod=1&quality=medium";
+    if (!url.startsWith("/models/")) return; // only self-hosted models
+    const newUrl = url;
     setAvatarUrl(newUrl);
     localStorage.setItem("avatarURL", newUrl);
     localStorage.setItem("3dworld_avatar_chosen", "1");
@@ -1649,32 +1620,9 @@ export const UI = () => {
               onClose={() => { soundManager.play("menu_close"); setCharacterSelectorMode(false); }}
               currentAvatarUrl={avatarUrl}
               onSelectAvatar={handleSelectCharacter}
-              onCustomAvatar={() => setAvatarMode(true)}
             />
           )}
         </AnimatePresence>
-        {avatarMode && (
-          <AvatarCreator
-            subdomain="wawa-sensei-tutorial"
-            className="fixed top-0 left-0 z-[999999999] w-full h-full" // have to put a crazy z-index to be on top of HTML generated by Drei
-            onAvatarExported={(event) => {
-              let newAvatarUrl =
-                event.data.url === avatarUrl.split("?")[0]
-                  ? event.data.url.split("?")[0] + "?" + new Date().getTime()
-                  : event.data.url;
-              newAvatarUrl +=
-                (newAvatarUrl.includes("?") ? "&" : "?") +
-                "meshlod=1&quality=medium";
-              setAvatarUrl(newAvatarUrl);
-              localStorage.setItem("avatarURL", newAvatarUrl);
-              localStorage.setItem("3dworld_avatar_chosen", "1");
-              if (roomID) {
-                socket.emit("characterAvatarUpdate", newAvatarUrl);
-              }
-              setAvatarMode(false);
-            }}
-          />
-        )}
         {botConnectMode && (
           <BotConnectModal onClose={() => { soundManager.play("menu_close"); setBotConnectMode(false); }} />
         )}

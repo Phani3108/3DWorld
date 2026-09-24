@@ -132,7 +132,7 @@ export const QUESTS = {
 };
 
 export const listQuestIds = () => Object.keys(QUESTS);
-export const getQuest = (id) => QUESTS[id] || null;
+export const getQuest = (id) => (Object.hasOwn(QUESTS, id) ? QUESTS[id] : null);
 export const questsByGiver = (giverId) =>
   Object.values(QUESTS).filter((q) => q.giverId === giverId);
 export const allQuestsPublic = () => Object.values(QUESTS);

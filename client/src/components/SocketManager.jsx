@@ -4,10 +4,16 @@ import { useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import { activityEventsAtom } from "./ActivityFeed";
 import soundManager from "../audio/SoundManager";
-import { registerCityMusic, registerVenueMusic, slugify as _slugify } from "../audio/musicRegistry";
+import { registerCityMusic, registerVenueMusic } from "../audio/musicRegistry";
+import { updateProfile as apiUpdateProfile } from "../lib/api";
 
+// autoConnect is off: the server sends `welcome` the moment a socket
+// connects, so connecting before SocketManager registers its listeners can
+// drop it and leave the loader stuck at 0%. SocketManager connects after
+// wiring every handler.
 export const socket = io(
-  import.meta.env.VITE_SERVER_URL || "http://localhost:3000"
+  import.meta.env.VITE_SERVER_URL || "http://localhost:3000",
+  { autoConnect: false }
 );
 export const charactersAtom = atom([]);
 export const mapAtom = atom(null);
@@ -144,26 +150,34 @@ export const fetchRooms = (offset, limit, search) => {
 };
 
 const LOCAL_FALLBACK_AVATAR_URL = "/models/sillyNubCat.glb";
-const isRemoteAvatarUrl = (url) => /^https?:\/\//i.test(url || "");
 
 // Keep the avatar URL in a shared atom so onboarding + UI stay in sync.
-// Prefer a local fallback avatar for first-run localhost reliability.
+// Only self-hosted models are valid: remote avatars (Ready Player Me) are
+// gone, so any stored remote URL resets to the local default.
 const initialAvatarUrl = (() => {
-  const stored = (localStorage.getItem("avatarURL") || "").trim();
-  if (!stored) {
-    localStorage.setItem("avatarURL", LOCAL_FALLBACK_AVATAR_URL);
-    return LOCAL_FALLBACK_AVATAR_URL;
-  }
-
-  const hasExplicitAvatarChoice = localStorage.getItem("3dworld_avatar_chosen") === "1";
-  if (!hasExplicitAvatarChoice && isRemoteAvatarUrl(stored)) {
-    localStorage.setItem("avatarURL", LOCAL_FALLBACK_AVATAR_URL);
-    return LOCAL_FALLBACK_AVATAR_URL;
-  }
-
-  return stored;
+  let stored = "";
+  try { stored = (localStorage.getItem("avatarURL") || "").trim(); } catch {}
+  if (stored.startsWith("/models/")) return stored;
+  try { localStorage.setItem("avatarURL", LOCAL_FALLBACK_AVATAR_URL); } catch {}
+  return LOCAL_FALLBACK_AVATAR_URL;
 })();
 export const avatarUrlAtom = atom(initialAvatarUrl);
+
+// Onboarding collects the profile before the server has issued this
+// browser's identity (that happens on the first roomJoined). Queue the
+// patch and flush it once we hold a server userId + session token.
+const PENDING_PROFILE_KEY = "3dworld_pending_profile";
+export const queuePendingProfile = (patch) => {
+  try { localStorage.setItem(PENDING_PROFILE_KEY, JSON.stringify(patch)); } catch {}
+};
+const flushPendingProfile = (userId) => {
+  let patch = null;
+  try { patch = JSON.parse(localStorage.getItem(PENDING_PROFILE_KEY) || "null"); } catch {}
+  if (!patch || !userId) return;
+  apiUpdateProfile(userId, patch)
+    .then(() => { try { localStorage.removeItem(PENDING_PROFILE_KEY); } catch {} })
+    .catch((err) => console.warn("[profile] update failed; will retry on next join:", err));
+};
 
 export const SocketManager = () => {
   const [_characters, setCharacters] = useAtom(charactersAtom);
@@ -348,6 +362,7 @@ export const SocketManager = () => {
         setSessionToken(value.sessionToken);
         setSessionTokenState(value.sessionToken);
       }
+      flushPendingProfile(value.userId || userId);
       setCharacters(value.characters);
       setChatMessages([]);
       if (value.coins !== undefined) setCoins(value.coins);
@@ -946,6 +961,8 @@ export const SocketManager = () => {
     socket.on("objectives:init", onObjectivesInit);
     socket.on("objectives:progress", onObjectivesProgress);
     socket.on("objectives:complete", onObjectivesComplete);
+    if (!socket.connected) socket.connect(); // only after every listener is attached
+
     return () => {
       clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;

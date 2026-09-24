@@ -188,7 +188,7 @@ export const LANGUAGES = {
 };
 
 /** @returns {object|null} */
-export const getLanguage = (cityId) => LANGUAGES[cityId] || null;
+export const getLanguage = (cityId) => (Object.hasOwn(LANGUAGES, cityId) ? LANGUAGES[cityId] : null);
 
 /** @returns {string} random greeting for a given city */
 export const pickGreeting = (cityId) => {

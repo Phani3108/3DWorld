@@ -10,6 +10,8 @@ import {
   socket,
   itemsAtom,
   usernameAtom,
+  avatarUrlAtom,
+  queuePendingProfile,
 } from "./components/SocketManager";
 import { UI } from "./components/UI";
 import { ActivityFeed } from "./components/ActivityFeed";
@@ -31,7 +33,6 @@ import CityInfoCard from "./components/CityInfoCard";
 import VenueInfoCard from "./components/VenueInfoCard";
 import LanguageBadge from "./components/LanguageBadge";
 import { HelpSheet } from "./components/HelpSheet";
-import { updateProfile as apiUpdateProfile } from "./lib/api";
 import MobileControls from "./components/MobileControls";
 import { isMobileAtom } from "./hooks/useMobile";
 
@@ -154,6 +155,7 @@ function App() {
   const { progress } = useProgress();
   const [loaded, setLoaded] = useState(false);
   const [username, setUsername] = useAtom(usernameAtom);
+  const [, setAvatarUrl] = useAtom(avatarUrlAtom);
   const [isMobile] = useAtom(isMobileAtom);
   const [showWelcome, setShowWelcome] = useState(
     !localStorage.getItem("3dworld_onboarded_v2")
@@ -257,14 +259,12 @@ function App() {
               setUsername(resolvedName);
               setShowWelcome(false);
 
-              // Persist profile patch (avatar/accent/bio/pronouns/homeCity/socials).
-              // Fire-and-forget; UI does not block on the response.
-              const userId = localStorage.getItem("3dworld_user_id");
-              if (userId && extras && Object.keys(extras).length > 0) {
-                apiUpdateProfile(userId, extras).catch((err) => {
-                  console.warn("[profile] update failed:", err);
-                });
-              }
+              // The chosen avatar must be in the atom before the first join
+              // (SocketManager joins as soon as the username is set).
+              if (extras?.avatarUrl?.startsWith?.("/models/")) setAvatarUrl(extras.avatarUrl);
+              // The profile can only be saved under the server-issued id,
+              // which arrives on roomJoined — queue it until then.
+              if (extras && Object.keys(extras).length > 0) queuePendingProfile(extras);
             }}
           />
         </>

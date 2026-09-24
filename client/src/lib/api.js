@@ -8,8 +8,19 @@
 const SERVER_URL =
   import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
 
+// The server issues a session token on roomJoined; every mutating user
+// route requires it (userIds alone are public and prove nothing).
+export const sessionHeaders = () => {
+  try {
+    const token = localStorage.getItem("3dworld_session_token");
+    return token ? { "X-Session-Token": token } : {};
+  } catch {
+    return {};
+  }
+};
+
 const getJSON = async (path) => {
-  const res = await fetch(`${SERVER_URL}${path}`);
+  const res = await fetch(`${SERVER_URL}${path}`, { headers: sessionHeaders() });
   if (!res.ok) throw new Error(`GET ${path} → ${res.status}`);
   return res.json();
 };
@@ -17,7 +28,7 @@ const getJSON = async (path) => {
 const postJSON = async (path, body) => {
   const res = await fetch(`${SERVER_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...sessionHeaders() },
     body: JSON.stringify(body || {}),
   });
   if (!res.ok) {

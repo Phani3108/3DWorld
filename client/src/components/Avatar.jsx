@@ -20,6 +20,11 @@ import { GLTFLoader } from "three-stdlib";
 import { motion } from "framer-motion-3d";
 
 // Atom to track which character's profile popup is open
+const DEFAULT_MODEL_URL = "/models/sillyNubCat.glb";
+/** Self-hosted model URL or the default — never a remote URL. */
+export const toLocalModelUrl = (url) =>
+  typeof url === "string" && url.startsWith("/models/") ? url : DEFAULT_MODEL_URL;
+
 export const selectedCharacterAtom = atom(null);
 export const followedCharacterAtom = atom(null);
 
@@ -232,7 +237,9 @@ export const Avatar = memo(function Avatar({
   // photo loads. When `useFlatPhoto` and the photo doesn't exist, fall
   // back to InitialBillboard so the user is still represented as a
   // portrait (the visual contract).
-  const isPhotoMode = !!avatarPhotoUrl && (photoExists || useFlatPhoto);
+  // Portrait-as-body only when the caller asks for it (residents, or a user
+  // who opted in). A default portrait URL existing is not a request.
+  const isPhotoMode = !!avatarPhotoUrl && useFlatPhoto;
   const [actionStatus, setActionStatus] = useState(null); // { action, detail }
   const [showBondHearts, setShowBondHearts] = useState(false);
   const [bondEmote, setBondEmote] = useState(null); // "highfive" | "hug" | null
@@ -304,12 +311,15 @@ export const Avatar = memo(function Avatar({
 
   const group = useRef();
 
+  // Only self-hosted models load: a remote URL (e.g. the defunct Ready
+  // Player Me CDN) would throw inside useGLTF and blank the whole avatar.
+  const safeAvatarUrl = toLocalModelUrl(avatarUrl);
   // Parse variant from avatar URL (e.g. ?variant=elephant) and strip for model loading
   const avatarVariant = useMemo(() => {
-    const match = avatarUrl.match(/[?&]variant=(\w+)/);
+    const match = safeAvatarUrl.match(/[?&]variant=(\w+)/);
     return match ? match[1] : null;
-  }, [avatarUrl]);
-  const modelUrl = useMemo(() => avatarUrl.split("?")[0], [avatarUrl]);
+  }, [safeAvatarUrl]);
+  const modelUrl = useMemo(() => safeAvatarUrl.split("?")[0], [safeAvatarUrl]);
 
   const { scene } = useGLTF(modelUrl);
   // Skinned meshes cannot be re-used in threejs without cloning them
@@ -1514,11 +1524,7 @@ export const Avatar = memo(function Avatar({
             still drives walk-cycle position, vehicle rig, and bond
             emote anchors; only the visible body changes. */}
         {!isPhotoMode && (
-          avatarUrl.startsWith("/") ? (
-            <primitive object={clone} ref={avatar} scale={0.63} position-y={0.6} />
-          ) : (
-            <primitive object={clone} ref={avatar} />
-          )
+          <primitive object={clone} ref={avatar} scale={0.63} position-y={0.6} />
         )}
         {isPhotoMode && (
           photoExists ? (
@@ -1655,8 +1661,9 @@ const VehicleRig = ({ type }) => {
 // Renders a close-up face portrait of a character model off-screen
 const avatarPortraitCache = {};
 
-export const renderAvatarPortrait = (avatarUrl, callback) => {
-  if (!avatarUrl) return;
+export const renderAvatarPortrait = (rawAvatarUrl, callback) => {
+  if (!rawAvatarUrl) return;
+  const avatarUrl = toLocalModelUrl(rawAvatarUrl);
   if (avatarPortraitCache[avatarUrl]) {
     callback(avatarPortraitCache[avatarUrl]);
     return;

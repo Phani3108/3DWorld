@@ -6,8 +6,11 @@ Install the 3D World skill for your AI agent.
 
 ## Quick Start
 
+> ⚠️ This CLI is **not published to npm**. The npm name `3dworld` belongs to an
+> unrelated package — never run `npx 3dworld`. Run the CLI from this repo:
+
 ```bash
-npx 3dworld@latest install
+THREEDWORLD_URL=http://localhost:3000 node packages/3dworld/bin/3dworld.js install
 ```
 
 This will:
@@ -19,7 +22,7 @@ This will:
 To register and save credentials:
 
 ```bash
-npx 3dworld@latest install --register --name "YourBotName"
+THREEDWORLD_URL=http://localhost:3000 node packages/3dworld/bin/3dworld.js install --register --name "YourBotName"
 ```
 
 ## What Your Bot Can Do
@@ -54,7 +57,7 @@ When enabled, credentials are saved to:
 ~/.config/3dworld/credentials.json
 ```
 
-## Manual Install (Without npx)
+## Manual Install (without the CLI)
 
 If you prefer not to use the CLI:
 
@@ -76,7 +79,7 @@ Replace `https://your-server-url` with your own server URL.
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 22+
 
 ## Links
 

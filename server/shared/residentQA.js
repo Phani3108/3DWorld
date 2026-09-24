@@ -14,6 +14,8 @@
  * Hosts don't need entries here — the venue bank already represents them.
  */
 
+import { matchBank } from "./cannedMatcher.js";
+
 export const RESIDENT_QA = {
   // ── Hyderabad ─────────────────────────────────────────────────────
   naseem_hyd: [
@@ -277,31 +279,8 @@ export const RESIDENT_QA = {
  * @param {string} question
  * @returns {object|null} { keywords, answer } or null
  */
-export const matchResidentCannedAnswer = (residentId, question) => {
-  const bank = RESIDENT_QA[residentId];
-  if (!Array.isArray(bank) || bank.length === 0) return null;
-  const q = String(question || "").toLowerCase();
-  if (!q) return null;
-  const tokens = new Set(q.split(/\W+/).filter((t) => t.length > 2));
-
-  let best = null;
-  let bestScore = 0;
-  for (const entry of bank) {
-    let score = 0;
-    for (const kw of entry.keywords || []) {
-      const kwLower = kw.toLowerCase();
-      if (q.includes(kwLower)) score += 2;
-      for (const tok of tokens) {
-        if (kwLower.includes(tok) || tok.includes(kwLower)) score += 1;
-      }
-    }
-    if (score > bestScore) {
-      bestScore = score;
-      best = entry;
-    }
-  }
-  return bestScore > 0 ? best : null;
-};
+export const matchResidentCannedAnswer = (residentId, question) =>
+  matchBank(Object.hasOwn(RESIDENT_QA, residentId) ? RESIDENT_QA[residentId] : null, question);
 
 /** @returns {string[]} all resident ids with a personal Q&A bank. */
 export const listResidentsWithQA = () => Object.keys(RESIDENT_QA);

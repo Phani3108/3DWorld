@@ -1,3 +1,4 @@
+import "./env.js"; // must stay first — loads server/.env before other modules read it
 import fs from "fs";
 import http from "http";
 import pathfinding from "pathfinding";
@@ -404,7 +405,27 @@ const httpHandler = createHttpHandler({
 });
 
 const httpServer = http.createServer(async (req, res) => {
-  return httpHandler(req, res);
+  try {
+    await httpHandler(req, res);
+  } catch (err) {
+    // A bad request must never take the whole world down.
+    console.error(`[http] ${req.method} ${req.url} failed:`, err);
+    if (!res.headersSent) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "internal_error" }));
+    } else if (!res.writableEnded) {
+      res.end();
+    }
+  }
+});
+
+// Last-resort guards: log and keep serving. Handler-level errors are caught
+// above and in registerSocketHandlers; these catch stray timers/callbacks.
+process.on("unhandledRejection", (reason) => {
+  console.error("[process] unhandledRejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[process] uncaughtException:", err);
 });
 
 const io = new Server(httpServer, {

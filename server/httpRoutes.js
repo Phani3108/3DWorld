@@ -25,7 +25,7 @@ import { memoryStats } from "./llm/memoryStore.js";
 import { acceptQuest, tickEvent, listUserQuests, questCounts, fireQuestEvent } from "./questService.js";
 import { allQuestsPublic, getQuest, questsByGiver } from "./shared/questCatalog.js";
 import { addReputation, getUserReputation, reputationTier, cityLeaderboard, REPUTATION_TIERS } from "./reputationService.js";
-import { findResidentCharacter } from "./residentService.js";
+import { findResidentCharacter, inCharacterRedirect } from "./residentService.js";
 import { VEHICLES, getVehicle, allVehiclesPublic, DEFAULT_VEHICLE_ID } from "./shared/vehicleCatalog.js";
 
 export const createHttpHandler = (deps) => {
@@ -184,6 +184,37 @@ export const createHttpHandler = (deps) => {
     return headers;
   };
 
+  // ── Human session auth ─────────────────────────────────────────────
+  // userIds are visible to everyone in a room, so a userId in a URL or body
+  // proves nothing. Mutating user routes require the session token the
+  // client received on roomJoined, sent as `X-Session-Token` (or as
+  // `sessionToken` in the body for older clients).
+  const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+  const isSafeId = (id) =>
+    typeof id === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(id) && !UNSAFE_KEYS.has(id);
+  const sessionTokenFrom = (req, body) => {
+    const header = req.headers["x-session-token"];
+    if (typeof header === "string" && header.length > 0) return header;
+    return typeof body?.sessionToken === "string" ? body.sessionToken : null;
+  };
+  const verifySession = async (req, userId, body) => {
+    if (!isSafeId(userId)) return false;
+    // A registered bot's API key vouches for its own user id.
+    const bearer = typeof req.headers.authorization === "string"
+      ? req.headers.authorization.replace(/^Bearer\s+/i, "").trim()
+      : "";
+    if (bearer) {
+      const reg = botRegistry.get(hashApiKey(bearer));
+      if (reg?.userId && reg.userId === userId) return true;
+    }
+    const token = sessionTokenFrom(req, body);
+    if (!token) return false;
+    const { validateSessionToken } = await import("./userStore.js");
+    return validateSessionToken(userId, token);
+  };
+  const cleanDisplayName = (name) =>
+    String(name || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 40);
+
   // Generate the SKILL.md content dynamically (so the server URL is always correct)
   const generateSkillMd = () => `---
 name: 3dworld
@@ -264,7 +295,7 @@ socket.on("welcome", (data) => {
 \`\`\`javascript
 socket.emit("joinRoom", roomId, {
   name: "YourBotName",
-  avatarUrl: "https://models.readyplayer.me/64f0265b1db75f90dcfd9e2c.glb",
+  avatarUrl: "/models/sillyNubCat.glb?variant=tiger", // any /api/v1/avatars url
   isBot: true,
 });
 
@@ -911,7 +942,7 @@ Want to build your own space? Each bot gets **one room** — here's how:
       res.writeHead(status, {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": corsOrigin,
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Session-Token",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
         "Vary": "Origin",
         ...securityHeaders,
@@ -932,7 +963,7 @@ Want to build your own space? Each bot gets **one room** — here's how:
     if (req.method === "OPTIONS") {
       res.writeHead(204, {
         "Access-Control-Allow-Origin": corsOrigin,
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Session-Token",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
         "Vary": "Origin",
         ...securityHeaders,
@@ -1044,6 +1075,9 @@ Want to build your own space? Each bot gets **one room** — here's how:
       catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
       const userId = vehicleSetMatch[1];
       const { vehicleId } = payload || {};
+      if (!(await verifySession(req, userId, payload))) {
+        return json(res, 401, { error: "unauthorized" });
+      }
       const v = getVehicle(vehicleId);
       if (!v) return json(res, 404, { error: "vehicle_not_found" });
       const { getUser, updateUserCoins } = await import("./userStore.js");
@@ -1209,6 +1243,7 @@ Want to build your own space? Each bot gets **one room** — here's how:
     }
     const userQuestsMatch = req.url?.match(/^\/api\/v1\/users\/([A-Za-z0-9_-]+)\/quests(?:\?.*)?$/);
     if (req.method === "GET" && userQuestsMatch) {
+      if (!isSafeId(userQuestsMatch[1])) return json(res, 404, { error: "user_not_found" });
       return json(res, 200, listUserQuests(userQuestsMatch[1]));
     }
     if (req.method === "POST" && req.url === "/api/v1/quests/accept") {
@@ -1216,6 +1251,9 @@ Want to build your own space? Each bot gets **one room** — here's how:
       try { payload = await readBody(req); }
       catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
       const { userId, questId } = payload || {};
+      if (!(await verifySession(req, userId, payload))) {
+        return json(res, 401, { error: "unauthorized" });
+      }
       const r = acceptQuest(userId, questId);
       if (!r.ok) return json(res, 400, r);
       return json(res, 200, r);
@@ -1224,6 +1262,7 @@ Want to build your own space? Each bot gets **one room** — here's how:
     // Reputation (Phase 9C)
     const userRepMatch = req.url?.match(/^\/api\/v1\/users\/([A-Za-z0-9_-]+)\/reputation$/);
     if (req.method === "GET" && userRepMatch) {
+      if (!isSafeId(userRepMatch[1])) return json(res, 404, { error: "user_not_found" });
       return json(res, 200, {
         scores: getUserReputation(userRepMatch[1]),
         tiers: REPUTATION_TIERS,
@@ -1257,6 +1296,9 @@ Want to build your own space? Each bot gets **one room** — here's how:
       const { userId, cityId } = payload || {};
       if (typeof userId !== "string" || typeof cityId !== "string") {
         return json(res, 400, { error: "missing_fields" });
+      }
+      if (!(await verifySession(req, userId, payload))) {
+        return json(res, 401, { error: "unauthorized" });
       }
       const { getUser, updateUserCoins } = await import("./userStore.js");
       const user = await getUser(userId);
@@ -1506,12 +1548,10 @@ Want to build your own space? Each bot gets **one room** — here's how:
       let patch;
       try { patch = await readBody(req); }
       catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
-      if (!OPEN_ACCESS) {
-        const token = patch.sessionToken;
-        const { validateSessionToken } = await import("./userStore.js");
-        const ok = await validateSessionToken(userId, token);
-        if (!ok) return json(res, 401, { error: "unauthorized" });
+      if (!(await verifySession(req, userId, patch))) {
+        return json(res, 401, { error: "unauthorized" });
       }
+      delete patch.sessionToken;
       const updated = await updateProfile(userId, patch);
       if (!updated) return json(res, 500, { error: "update_failed" });
       return json(res, 200, publicProfile(updated));
@@ -1525,6 +1565,9 @@ Want to build your own space? Each bot gets **one room** — here's how:
       const { userId, foodId } = payload || {};
       if (typeof userId !== "string" || typeof foodId !== "string") {
         return json(res, 400, { error: "missing_fields" });
+      }
+      if (!(await verifySession(req, userId, payload))) {
+        return json(res, 401, { error: "unauthorized" });
       }
       const food = getFood(foodId);
       if (!food) return json(res, 404, { error: "food_not_found" });
@@ -1578,6 +1621,9 @@ Want to build your own space? Each bot gets **one room** — here's how:
       const { userId, itemId } = payload || {};
       if (typeof userId !== "string" || typeof itemId !== "string") {
         return json(res, 400, { error: "missing_fields" });
+      }
+      if (!(await verifySession(req, userId, payload))) {
+        return json(res, 401, { error: "unauthorized" });
       }
       const { getBazaarItem } = await import("./shared/bazaarCatalog.js");
       const item = getBazaarItem(itemId);
@@ -1648,6 +1694,9 @@ Want to build your own space? Each bot gets **one room** — here's how:
       const { userId, bundleId } = payload || {};
       if (typeof userId !== "string" || typeof bundleId !== "string") {
         return json(res, 400, { error: "missing_fields" });
+      }
+      if (!(await verifySession(req, userId, payload))) {
+        return json(res, 401, { error: "unauthorized" });
       }
       const { getBundle } = await import("./shared/barterCatalog.js");
       const bundle = getBundle(bundleId);
@@ -1745,6 +1794,9 @@ Want to build your own space? Each bot gets **one room** — here's how:
       if (typeof userId !== "string" || typeof text !== "string") {
         return json(res, 400, { error: "missing_fields" });
       }
+      if (!(await verifySession(req, userId, payload))) {
+        return json(res, 401, { error: "unauthorized" });
+      }
       const trimmed = text.replace(/<[^>]*>/g, "").slice(0, 280).trim();
       if (!trimmed) return json(res, 400, { error: "empty_text" });
       const cleanEmoji = typeof emoji === "string" ? emoji.slice(0, 4) : undefined;
@@ -1795,6 +1847,9 @@ Want to build your own space? Each bot gets **one room** — here's how:
       const { userId, imageBase64, caption, cityId, nearbyUserIds } = payload || {};
       if (typeof userId !== "string" || typeof imageBase64 !== "string") {
         return json(res, 400, { error: "missing_fields" });
+      }
+      if (!(await verifySession(req, userId, payload))) {
+        return json(res, 401, { error: "unauthorized" });
       }
       const user = await getUser(userId);
       if (!user) return json(res, 404, { error: "user_not_found" });
@@ -1894,33 +1949,153 @@ Want to build your own space? Each bot gets **one room** — here's how:
       return json(res, 404, { error: "memory_not_found" });
     }
 
-    // ═══ Phase 5 + 6: Ask-an-Agent (venue-aware, canned fallback) ═════
+    // ═══ Ask-an-Agent ═══════════════════════════════════════════════════
+    // Resident targets answer through, in order:
+    //   1. Claude (when a key is configured and the cost guards allow),
+    //   2. the resident's / venue's curated bank,
+    //   3. an in-character redirect built from their own lines —
+    // so a resident never leaves a visitor hanging. Other targets (external
+    // webhook or polling bots) get a reply token below.
     if (req.method === "POST" && req.url === "/api/v1/ask") {
       let payload;
       try { payload = await readBody(req); }
       catch (e) { return json(res, 400, { error: "invalid_body", detail: e.message }); }
-      const { fromUserId, fromName, toBotId, question, roomId, venueId: hintedVenueId } = payload || {};
-      if (typeof fromUserId !== "string" || typeof toBotId !== "string"
-          || typeof question !== "string" || typeof roomId !== "string") {
+      const { fromUserId, fromName, toBotId, question, roomId: requestedRoomId, venueId: hintedVenueId } = payload || {};
+      if (typeof fromUserId !== "string" || typeof toBotId !== "string" || typeof question !== "string") {
         return json(res, 400, { error: "missing_fields" });
       }
+      if (!(await verifySession(req, fromUserId, payload))) {
+        return json(res, 401, { error: "unauthorized" });
+      }
+      const questionText = question.replace(/<[^>]*>/g, "").trim().slice(0, 500);
+      if (!questionText) return json(res, 400, { error: "empty_question" });
 
-      // Resolve venue context — prefer explicit hint, else compute from the
-      // asker's current grid position in the room.
-      let venue = null;
-      if (hintedVenueId) {
-        venue = getVenue(hintedVenueId);
-      } else {
-        const room = getCachedRoom(roomId);
-        const askerChar = room?.characters?.find((c) => c.userId === fromUserId);
-        if (askerChar?.position) {
-          const cityId = cityIdFromRoom(roomId);
-          const autoVenueId = findVenueAt(cityId, askerChar.position);
-          if (autoVenueId) venue = getVenue(autoVenueId);
+      // The asker's room: the one requested if they're in it, else wherever
+      // their character currently is.
+      let roomId = null;
+      let askerChar = null;
+      for (const r of rooms) {
+        const ch = r.characters?.find((c) => c.userId === fromUserId);
+        if (!ch) continue;
+        if (!roomId || r.id === requestedRoomId) { roomId = r.id; askerChar = ch; }
+        if (r.id === requestedRoomId) break;
+      }
+      if (!roomId && typeof requestedRoomId === "string" && getCachedRoom(requestedRoomId)) roomId = requestedRoomId;
+      if (!roomId) return json(res, 400, { error: "not_in_room" });
+      const askerUser = await getUser(fromUserId);
+      const askerName = cleanDisplayName(fromName) || cleanDisplayName(askerUser?.name) || "friend";
+
+      const cityHint = cityIdFromRoom(roomId);
+      const residentHit = findResidentCharacter({ toBotId, getCachedRoom, cityId: cityHint });
+      const resident = residentHit?.resident || null;
+
+      // Where the asker is (hint, else their position) is context only: a
+      // resident always answers from their own venue's knowledge, so Arjun
+      // never speaks for a Hyderabad café just because the asker stands in one.
+      let askerVenue = typeof hintedVenueId === "string" ? getVenue(hintedVenueId) : null;
+      if (!askerVenue && askerChar?.position && cityHint) {
+        const autoVenueId = findVenueAt(cityHint, askerChar.position);
+        if (autoVenueId) askerVenue = getVenue(autoVenueId);
+      }
+      const homeVenue = resident?.homeVenueId ? getVenue(resident.homeVenueId) : null;
+      const venue = homeVenue || askerVenue;
+
+      if (resident) {
+        const residentChar = residentHit.character;
+        const speakerId = residentChar?.id || (venue ? `venue:${venue.id}` : `resident:${resident.id}`);
+        const nearbyNames = residentChar && residentHit.room
+          ? residentHit.room.characters
+              .filter((c) => c.id !== residentChar.id && c.name && Array.isArray(c.position) && Array.isArray(residentChar.position)
+                && Math.hypot(c.position[0] - residentChar.position[0], c.position[1] - residentChar.position[1]) <= 16)
+              .map((c) => c.name)
+          : [];
+
+        let answer = null;
+        let channel = null;
+        if (getActiveProvider().id !== "stub") {
+          const llm = await answerAsResident({
+            residentId: resident.id,
+            userId: fromUserId,
+            userName: askerName,
+            venueId: askerVenue?.id || venue?.id,
+            question: questionText,
+            nearbyNames,
+          });
+          if (llm.ok && llm.text) { answer = llm.text; channel = `llm-${llm.provider}`; }
         }
+        if (!answer && venue) {
+          const match = await matchCanned({ residentId: resident.id, venueId: venue.id, question: questionText });
+          if (match) { answer = match.answer; channel = "canned"; }
+        }
+        if (!answer) {
+          answer = inCharacterRedirect(resident);
+          channel = "redirect";
+        }
+
+        // Speak it where both the asker and the resident can see it.
+        if (deps.io) {
+          const bubble = { id: speakerId, name: resident.name, message: `@${askerName} — ${answer}`, residentId: resident.id };
+          deps.io.to(roomId).emit("playerChatMessage", bubble);
+          if (residentHit.room && residentHit.room.id !== roomId) deps.io.to(residentHit.room.id).emit("playerChatMessage", bubble);
+        }
+        if (channel === "redirect") {
+          return json(res, 200, { ok: true, channel, resident: { id: resident.id, name: resident.name }, venue: venue ? { id: venue.id, name: venue.name } : null, answer, questsCompleted: [] });
+        }
+
+        const { appendToUserList, incrementTeachingCount, awardXp } = await import("./userStore.js");
+        const fact = {
+          id: crypto.randomUUID ? crypto.randomUUID() : `lf_${Date.now()}`,
+          question: questionText,
+          answer,
+          fromBotId: resident.id,
+          fromBotName: resident.name,
+          fromVenueId: venue?.id || null,
+          fromVenueName: venue?.name || null,
+          cityId: resident.cityId,
+          learnedAt: Date.now(),
+          channel,
+        };
+        await appendToUserList(fromUserId, "learnedFacts", fact, 200);
+        await incrementTeachingCount(resident.id);
+        appendConversation({
+          fromUserId, fromName: askerName,
+          toBotId: resident.id, toBotName: resident.name,
+          venueId: venue?.id || null, cityId: resident.cityId,
+          question: questionText, answer, channel,
+        });
+        try {
+          const { liveEventAtVenue } = await import("./shared/eventsCatalog.js");
+          const live = venue ? liveEventAtVenue(venue.id) : null;
+          const bonusXp = live?.event?.boostXp || 0;
+          const bonusRep = live?.event?.boostRep || 0;
+          await awardXp(fromUserId, "ask", bonusXp);
+          await awardXp(resident.id, "teach", bonusXp);
+          addReputation(fromUserId, resident.cityId, 2 + bonusRep);
+        } catch {}
+        const questsCompleted = [];
+        for (const tag of resident.expertise || []) {
+          questsCompleted.push(...await fireQuestEvent(fromUserId, { type: "ask_tag", target: tag }, { fromName: askerName }));
+        }
+        questsCompleted.push(...await fireQuestEvent(fromUserId, { type: "ask_resident", target: resident.id }, { fromName: askerName }));
+        const where = venue?.name || resident.name;
+        addToFeed({
+          type: "fact",
+          actorUserId: fromUserId, actorName: askerName,
+          cityId: resident.cityId,
+          text: `learned at ${where}: ${answer.slice(0, 110)}${answer.length > 110 ? "…" : ""}`,
+          emoji: channel.startsWith("llm") ? "⚡" : "🧠",
+          meta: { venueId: venue?.id || null, question: questionText, channel },
+        });
+        return json(res, 200, {
+          ok: true, channel,
+          resident: { id: resident.id, name: resident.name },
+          venue: venue ? { id: venue.id, name: venue.name } : null,
+          answer, fact,
+          questsCompleted: questsCompleted.map((q) => ({ id: q.id, title: q.title, reward: q.reward })),
+        });
       }
 
-      // Resolve the bot registry entry.
+      // Non-resident target: registered external bot (webhook/polling).
       let botKey = null;
       let botReg = null;
       for (const [key, val] of (botRegistry?.entries?.() || [])) {
@@ -1928,208 +2103,12 @@ Want to build your own space? Each bot gets **one room** — here's how:
           botKey = key; botReg = val; break;
         }
       }
-
       const hasLiveWebhook = !!(botReg && botReg.webhookUrl);
-
-      // If no live LLM-backed bot is reachable AND we have a venue, serve
-      // the canned answer *immediately* so the demo UX feels conversational.
-      // Returns early, no reply token needed.
-      if (!hasLiveWebhook && venue) {
-        // Phase 7E.4 — if the target is a regular resident with their own
-        // bank, try that first. Otherwise (host, or no personal bank) fall
-        // through to the venue's canned bank as before.
-        const residentHit = findResidentCharacter({ toBotId, getCachedRoom });
-
-        // Phase 8B — before falling to canned, try the LLM path for this
-        // resident. This lets the SAME code path produce real-LLM answers
-        // when an API key is configured, and fall back transparently.
-        //
-        // BUGFIX — when no real provider is configured (active === stub)
-        // we skip the LLM entirely so the carefully written canned banks
-        // (Phase 7E.4: 168 venue + 42 personal answers) actually fire on
-        // the live demo. Stub mode would otherwise hijack every Ask with
-        // a generic echo that exposes the demo seam to users.
-        const llmActive = getActiveProvider();
-        if (residentHit?.resident?.id && llmActive.id !== "stub") {
-          const llm = await answerAsResident({
-            residentId: residentHit.resident.id,
-            userId:     fromUserId,
-            userName:   fromName,
-            venueId:    venue.id,
-            question,
-          });
-          if (llm.ok && llm.text) {
-            const emitId   = residentHit.character?.id || `venue:${venue.id}`;
-            const emitName = residentHit.resident.name;
-            if (deps.io) {
-              deps.io.to(roomId).emit("playerChatMessage", {
-                id: emitId, name: emitName,
-                message: `@${fromName || "friend"} — ${llm.text}`,
-              });
-            }
-            const { appendToUserList, incrementTeachingCount } = await import("./userStore.js");
-            const factId = crypto.randomUUID ? crypto.randomUUID() : `lf_${Date.now()}`;
-            const fact = {
-              id: factId,
-              question: question.slice(0, 500),
-              answer: llm.text,
-              fromBotId:     residentHit.resident.id,
-              fromBotName:   residentHit.resident.name,
-              fromVenueId:   venue.id,
-              fromVenueName: venue.name,
-              cityId: venue.cityId,
-              learnedAt: Date.now(),
-              channel: llm.stub ? "llm-stub" : `llm-${llm.provider || "unknown"}`,
-            };
-            await appendToUserList(fromUserId, "learnedFacts", fact, 200);
-            await incrementTeachingCount(residentHit.resident.id);
-            appendConversation({
-              fromUserId, fromName: fromName || "",
-              toBotId: residentHit.resident.id, toBotName: residentHit.resident.name,
-              venueId: venue.id, cityId: venue.cityId,
-              question, answer: llm.text,
-              channel: llm.stub ? "llm-stub" : `llm-${llm.provider || "unknown"}`,
-            });
-            try {
-              const { awardXp } = await import("./userStore.js");
-              await awardXp(fromUserId, "ask");
-              await awardXp(residentHit.resident.id, "teach");
-              // Phase 9C — small reputation nudge in the resident's city.
-              addReputation(fromUserId, venue.cityId, 2);
-            } catch {}
-            // Phase 9B — fire quest events: ask-by-tag (all expertise of
-            // the resident) + ask-by-resident.
-            const completedLlm = [];
-            for (const tag of residentHit.resident.expertise || []) {
-              const done = await fireQuestEvent(fromUserId, { type: "ask_tag", target: tag }, { fromName });
-              completedLlm.push(...done);
-            }
-            const doneRes = await fireQuestEvent(fromUserId, { type: "ask_resident", target: residentHit.resident.id }, { fromName });
-            completedLlm.push(...doneRes);
-
-            addToFeed({
-              type: "fact",
-              actorUserId: fromUserId, actorName: fromName || "",
-              cityId: venue.cityId,
-              text: `learned at ${venue.name}: ${llm.text.slice(0, 110)}${llm.text.length > 110 ? "…" : ""}`,
-              emoji: llm.stub ? "🤖" : "⚡",
-              meta: { venueId: venue.id, question, channel: "llm" },
-            });
-            return json(res, 200, {
-              ok: true, channel: llm.channel, stub: !!llm.stub,
-              venue: { id: venue.id, name: venue.name },
-              answer: llm.text, fact,
-              questsCompleted: completedLlm.map((q) => ({ id: q.id, title: q.title, reward: q.reward })),
-            });
-          }
-          // If LLM failed, fall through to canned — don't surface the reason.
-        }
-
-        // Phase 9F — single indirection layer. Default behaviour pulls
-        // from the same local catalogs as before; setting CANNED_BANK_URL
-        // routes lookups through a private remote API instead.
-        const match = await matchCanned({
-          residentId: residentHit?.resident?.id || null,
-          venueId:    venue.id,
-          question,
-        });
-        if (match) {
-          // Prefer the in-world resident's character id so the bubble appears
-          // above them; fall back to a synthetic venue:<id> if no resident.
-          const emitId = residentHit?.character?.id || `venue:${venue.id}`;
-          const emitName = residentHit?.resident?.name || venue.name;
-          if (deps.io) {
-            deps.io.to(roomId).emit("playerChatMessage", {
-              id: emitId,
-              name: emitName,
-              message: `@${fromName || "friend"} — ${match.answer}`,
-            });
-          }
-          // Still record a 🧠 learned fact for the asker so their profile reflects it.
-          const { appendToUserList } = await import("./userStore.js");
-          const factId = crypto.randomUUID ? crypto.randomUUID() : `lf_${Date.now()}`;
-          const fact = {
-            id: factId,
-            question: question.slice(0, 500),
-            answer: match.answer,
-            // Attribute to the resident when we found them in-world; otherwise
-            // fall back to the venue metadata (pre-7A behaviour).
-            fromBotId:   residentHit?.resident?.id   || venue.host || venue.id,
-            fromBotName: residentHit?.resident?.name || venue.name,
-            fromVenueId: venue.id,
-            fromVenueName: venue.name,
-            cityId: venue.cityId,
-            learnedAt: Date.now(),
-          };
-          await appendToUserList(fromUserId, "learnedFacts", fact, 200);
-          // Bump the resident's teaching counter so "🎓 has taught N times"
-          // accrues just like for LLM-backed bots.
-          if (residentHit?.resident?.id) {
-            const { incrementTeachingCount } = await import("./userStore.js");
-            await incrementTeachingCount(residentHit.resident.id);
-          }
-          addToFeed({
-            type: "fact",
-            actorUserId: fromUserId,
-            actorName: fromName || "",
-            cityId: venue.cityId,
-            text: `learned at ${venue.name}: ${match.answer.slice(0, 110)}${match.answer.length > 110 ? "…" : ""}`,
-            emoji: "🧠",
-            meta: { venueId: venue.id, question },
-          });
-          // Phase 7E.6 — append to the searchable archive. Uses the
-          // answering resident's id so tags pick up their expertise.
-          appendConversation({
-            fromUserId,
-            fromName: fromName || "",
-            toBotId: residentHit?.resident?.id || venue.host || venue.id,
-            toBotName: residentHit?.resident?.name || venue.name,
-            venueId: venue.id,
-            cityId: venue.cityId,
-            question,
-            answer: match.answer,
-            channel: "canned",
-          });
-          // Phase 7H — learner gets XP for asking; resident gets XP for teaching.
-          // Phase 9G — if a live event is running here, apply the bonus
-          // multipliers from eventsCatalog so showing up at the right time
-          // genuinely matters.
-          try {
-            const { awardXp } = await import("./userStore.js");
-            const { liveEventAtVenue } = await import("./shared/eventsCatalog.js");
-            const live = liveEventAtVenue(venue.id);
-            const bonusXp  = live?.event?.boostXp  || 0;
-            const bonusRep = live?.event?.boostRep || 0;
-            await awardXp(fromUserId, "ask", bonusXp);
-            if (residentHit?.resident?.id) await awardXp(residentHit.resident.id, "teach", bonusXp);
-            addReputation(fromUserId, venue.cityId, 2 + bonusRep);
-          } catch {}
-          // Phase 9B — fire quest events (ask-by-tag for every resident
-          // expertise tag + ask-by-resident).
-          const completedCanned = [];
-          if (residentHit?.resident) {
-            for (const tag of residentHit.resident.expertise || []) {
-              const done = await fireQuestEvent(fromUserId, { type: "ask_tag", target: tag }, { fromName });
-              completedCanned.push(...done);
-            }
-            const doneRes = await fireQuestEvent(fromUserId, { type: "ask_resident", target: residentHit.resident.id }, { fromName });
-            completedCanned.push(...doneRes);
-          }
-          return json(res, 200, {
-            ok: true,
-            channel: "canned",
-            venue: { id: venue.id, name: venue.name },
-            answer: match.answer,
-            fact,
-            questsCompleted: completedCanned.map((q) => ({ id: q.id, title: q.title, reward: q.reward })),
-          });
-        }
-      }
 
       // Normal flow: mint a token and route to the bot.
       const channel = hasLiveWebhook ? "both" : "polling";
       const result = createQuestion({
-        fromUserId, fromName, toBotId: botKey || toBotId, question, roomId, channel,
+        fromUserId, fromName: askerName, toBotId: botKey || toBotId, question: questionText, roomId, channel,
         venueId: venue?.id || null,
         cityId:  venue?.cityId || null,
       });
@@ -2141,7 +2120,7 @@ Want to build your own space? Each bot gets **one room** — here's how:
             event: "question",
             question: result.entry.question,
             fromUserId,
-            fromName,
+            fromName: askerName,
             roomId,
             venue: venue ? {
               id: venue.id, name: venue.name, type: venue.type,

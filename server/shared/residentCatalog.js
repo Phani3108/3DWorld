@@ -11,13 +11,14 @@ import { dicebearUrl, RESIDENT_STYLE } from "./avatarDefaults.js";
  * Adding a resident = add one entry + an optional line in residentRoutines.
  */
 
-// Reuse the existing 5 catalog avatars — sanitizeAvatarUrl accepts them.
+// Residents render as portrait cards (avatarPhotoUrl); the 3D body is a
+// local model so it always loads. (The old Ready Player Me URLs are dead.)
 const A = {
   cat:     "/models/sillyNubCat.glb",
-  casual:  "https://models.readyplayer.me/64f0265b1db75f90dcfd9e2c.glb",
-  smart:   "https://models.readyplayer.me/663833cf6c79010563b91e1b.glb",
-  cozy:    "https://models.readyplayer.me/64bfa15f0e72c63d7c3934a6.glb",
-  work:    "https://models.readyplayer.me/64a3f54c1d64e9f3dbc832ac.glb",
+  casual:  "/models/sillyNubCat.glb?variant=monkey",
+  smart:   "/models/sillyNubCat.glb?variant=tiger",
+  cozy:    "/models/sillyNubCat.glb?variant=elephant",
+  work:    "/models/sillyNubCat.glb?variant=penguin",
 };
 
 export const RESIDENTS = {
@@ -445,7 +446,7 @@ export const RESIDENTS = {
 export const listResidentIds = () => Object.keys(RESIDENTS);
 
 /** @returns {object|null} */
-export const getResident = (id) => RESIDENTS[id] || null;
+export const getResident = (id) => (Object.hasOwn(RESIDENTS, id) ? RESIDENTS[id] : null);
 
 /** All residents in a given city. */
 export const residentsInCity = (cityId) =>

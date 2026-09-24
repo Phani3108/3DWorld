@@ -100,7 +100,7 @@ export const EXPERTISE_TAGS = {
 
 export const listExpertiseTags = () => Object.keys(EXPERTISE_TAGS);
 
-export const getExpertise = (tag) => EXPERTISE_TAGS[tag] || null;
+export const getExpertise = (tag) => (Object.hasOwn(EXPERTISE_TAGS, tag) ? EXPERTISE_TAGS[tag] : null);
 
 /**
  * Validate + normalise a user-supplied persona tag list. Drops unknown

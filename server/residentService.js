@@ -14,42 +14,41 @@ import crypto from "crypto";
 import { RESIDENTS, listResidentIds, getResident } from "./shared/residentCatalog.js";
 import { dicebearUrl, RESIDENT_STYLE } from "./shared/avatarDefaults.js";
 import { getVenue } from "./shared/venueCatalog.js";
+import { EXPERTISE_TAGS } from "./shared/expertiseCatalog.js";
+import { cityLocalTime } from "./shared/cityTime.js";
 import { pickRandomScene, listVenuesWithDialogues } from "./shared/ambientDialogues.js";
 
 const RESIDENT_TICK_MS = 6000;          // one behaviour step every 6 seconds
 const GREETING_DEBOUNCE_MS = 12_000;    // don't re-greet the same arrival twice
 
-// Phase 7K — time-of-day flavour. Uses server-local clock; demo-only,
-// not personalised to the visitor's timezone. Returns one of:
-//   "morning"   04:00 – 11:59
-//   "afternoon" 12:00 – 16:59
-//   "evening"   17:00 – 20:59
-//   "night"     21:00 – 03:59
+// Time-of-day flavour, on each city's own clock (cityTime.js). Lines are
+// language-neutral so they fit every city; residents' local flavour comes
+// from their own defaultLines.
 const TIME_OF_DAY_LINES = {
   morning: [
-    "subha subha — chai bhi hai bhai.",
-    "Morning light, best time of day.",
+    "Morning light — best time of day here.",
     "Freshly opened, freshly ready.",
+    "Early crowd's the friendliest crowd.",
   ],
   afternoon: [
-    "Dopahar ki bhook lagi hai, aa jao.",
-    "Lunch rush settling down.",
+    "Lunch rush is settling down.",
     "Afternoon is for long conversations.",
+    "Slow hour. Pull up a seat.",
   ],
   evening: [
-    "Shaam ki chai garam karte hain?",
     "Sunset's the best hour here.",
     "Evening crowd coming in.",
+    "Lights on, the street's waking up again.",
   ],
   night: [
-    "Raat hone wali hai — close karne wala hun.",
-    "Night shift, last orders soon.",
+    "Night shift — last orders soon.",
     "Quiet now. The best time to just sit.",
+    "Late ones are always the best stories.",
   ],
 };
 
-const currentTimeOfDay = (now = new Date()) => {
-  const h = now.getHours();
+const currentTimeOfDay = (cityId, now = new Date()) => {
+  const h = cityLocalTime(cityId, now).hour;
   if (h >= 4 && h < 12) return "morning";
   if (h >= 12 && h < 17) return "afternoon";
   if (h >= 17 && h < 21) return "evening";
@@ -268,7 +267,7 @@ export const startResidentTick = ({ io, rooms, getCachedRoom }) => {
         // instead of the resident's defaults so the world feels clock-aware.
         let line;
         if (Math.random() < 0.3) {
-          const todPool = TIME_OF_DAY_LINES[currentTimeOfDay()] || [];
+          const todPool = TIME_OF_DAY_LINES[currentTimeOfDay(r.cityId)] || [];
           if (todPool.length > 0) line = todPool[Math.floor(Math.random() * todPool.length)];
         }
         if (!line) line = r.defaultLines[Math.floor(Math.random() * r.defaultLines.length)];
@@ -399,21 +398,51 @@ export const noteUserChatInVenue = (venueId) => {
  * resident id, or the resident name. Used by Ask-an-Agent to locate a
  * resident's in-world character id so canned replies bubble above them.
  */
-export const findResidentCharacter = ({ toBotId, getCachedRoom }) => {
-  if (!toBotId) return null;
-  for (const residentId of listResidentIds()) {
-    const r = getResident(residentId);
-    if (
-      residentId === toBotId ||
-      r.name === toBotId ||
-      botKeyFor(residentId) === toBotId
-    ) {
-      const room = getCachedRoom(`city_${r.cityId}`);
-      if (!room) return null;
-      const ch = room.characters.find((c) => c.userId === residentId);
-      if (!ch) return null;
-      return { resident: r, character: ch, room };
-    }
+export const findResidentCharacter = ({ toBotId, getCachedRoom, cityId = null }) => {
+  const r = resolveResident(toBotId, cityId);
+  if (!r) return null;
+  const room = getCachedRoom(`city_${r.cityId}`);
+  const ch = room?.characters?.find((c) => c.userId === r.id) || null;
+  // The resident is known even if their character isn't spawned right now;
+  // callers fall back to a venue-level speaker id in that case.
+  return { resident: r, character: ch, room: room || null };
+};
+
+/**
+ * Resolve any of the ids the clients send for a resident:
+ *   farah_hyd · resident:farah_hyd · resident_farah_hyd · "Farah"
+ *   · a venue id (→ that venue's host).
+ * Names are ambiguous across cities ("Priya"), so a cityId hint wins ties.
+ */
+export const resolveResident = (toBotId, cityId = null) => {
+  if (typeof toBotId !== "string" || !toBotId) return null;
+  const raw = toBotId.trim();
+  const id = raw.replace(/^resident[:_]/, "");
+  const direct = getResident(id);
+  if (direct) return direct;
+
+  const venue = getVenue(raw);
+  if (venue) {
+    const residents = listResidentIds().map(getResident).filter((r) => r.homeVenueId === venue.id);
+    return residents.find((r) => (r.role || "host") === "host") || residents[0] || null;
   }
-  return null;
+
+  const byName = listResidentIds().map(getResident).filter((r) => r.name === raw);
+  if (byName.length === 0) return null;
+  return (cityId && byName.find((r) => r.cityId === cityId)) || byName[0];
+};
+
+/**
+ * What a resident says when neither the LLM nor their curated bank has an
+ * answer: one of their own lines plus what they *can* help with — never a
+ * silent dead end.
+ */
+export const inCharacterRedirect = (resident) => {
+  const lines = Array.isArray(resident?.defaultLines) ? resident.defaultLines : [];
+  const line = lines.length ? lines[Math.floor(Math.random() * lines.length)] : "";
+  const topics = (resident?.expertise || [])
+    .slice(0, 3)
+    .map((t) => (EXPERTISE_TAGS[t]?.label || t).toLowerCase());
+  const offer = topics.length ? `Ask me about ${topics.join(", ")}.` : "";
+  return [line, offer].filter(Boolean).join(" ") || "Tell me more?";
 };

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAtom } from "jotai";
 import { coinsAtom, charactersAtom, userAtom } from "./SocketManager";
+import { sessionHeaders } from "../lib/api";
 
 const SERVER_URL =
   import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
@@ -42,7 +43,7 @@ export const VehiclePicker = ({ open, onClose }) => {
         `${SERVER_URL}/api/v1/users/${encodeURIComponent(userId)}/vehicle`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...sessionHeaders() },
           body: JSON.stringify({ vehicleId: v.id }),
         },
       );
