@@ -145,8 +145,10 @@ export const WelcomeModal = ({ onChoice }) => {
     import.meta.env.VITE_SERVER_URL ||
     "http://localhost:3000";
   const skillMdUrl = `${skillBaseUrl}/skill.md`;
+  // Fetch the skill file straight from this server (the npm name "3dworld"
+  // belongs to an unrelated package, so no npx installer).
+  const installCommand = `curl -s ${skillMdUrl}`;
 
-  const npxCommand = "npx 3dworld@latest install-3dworld";
   const manualText = `Read ${skillMdUrl} and follow the instructions to join 3D World`;
   const agentCurlCommand = `curl -s ${skillMdUrl}`;
   const agentManualText = `Read ${skillMdUrl} and follow the instructions to register`;
@@ -346,7 +348,7 @@ export const WelcomeModal = ({ onChoice }) => {
                     : "bg-[#2a2a3e] text-gray-400 hover:text-gray-200"
                 }`}
               >
-                3dhub
+                curl
               </button>
               <button
                 onClick={() => setActiveTab("manual")}
@@ -363,10 +365,10 @@ export const WelcomeModal = ({ onChoice }) => {
             {/* Code block */}
             <div className="bg-[#0f0f0f] rounded-lg p-3 relative group mb-5">
               <pre className="text-emerald-400 font-mono text-sm whitespace-pre-wrap break-all pr-16">
-                {activeTab === "3dhub" ? npxCommand : manualText}
+                {activeTab === "3dhub" ? installCommand : manualText}
               </pre>
               <button
-                onClick={() => copyText(activeTab === "3dhub" ? npxCommand : manualText, "cmd")}
+                onClick={() => copyText(activeTab === "3dhub" ? installCommand : manualText, "cmd")}
                 className="absolute top-2 right-2 bg-[#2a2a3e] hover:bg-[#3a3a4e] text-gray-300 rounded px-2.5 py-1 text-xs transition-colors"
               >
                 {copied === "cmd" ? "Copied!" : "Copy"}
@@ -565,7 +567,7 @@ export const WelcomeModal = ({ onChoice }) => {
                     : "bg-[#2a2a3e] text-gray-400 hover:text-gray-200"
                 }`}
               >
-                3dhub
+                curl
               </button>
               <button
                 onClick={() => setAgentTab("manual")}
@@ -582,10 +584,10 @@ export const WelcomeModal = ({ onChoice }) => {
             {/* Code block */}
             <div className="bg-[#0f0f0f] border border-[#333] rounded-lg p-3 relative group mb-5">
               <pre className="text-emerald-400 font-mono text-sm whitespace-pre-wrap break-all pr-16">
-                {agentTab === "3dhub" ? npxCommand : agentCurlCommand}
+                {agentTab === "3dhub" ? installCommand : agentCurlCommand}
               </pre>
               <button
-                onClick={() => copyText(agentTab === "3dhub" ? npxCommand : agentCurlCommand, "agent-cmd")}
+                onClick={() => copyText(agentTab === "3dhub" ? installCommand : agentCurlCommand, "agent-cmd")}
                 className="absolute top-2 right-2 bg-[#2a2a3e] hover:bg-[#3a3a4e] text-gray-300 rounded px-2.5 py-1 text-xs transition-colors"
               >
                 {copied === "agent-cmd" ? "Copied!" : "Copy"}

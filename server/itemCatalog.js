@@ -19,40 +19,27 @@ export const ALLOWED_EMOTES = [
 ];
 
 // ── Avatars ─────────────────────────────────────────────────────────
-// AVATAR_CATALOG is the source of truth. AVATAR_URLS stays exported for
-// backward compatibility with code paths that only care about the URL list.
+// Local, self-hosted models only. Ready Player Me (models.readyplayer.me)
+// shut down and no longer resolves, so remote avatar URLs are never
+// accepted. Variants are the same rig with a colour tint (client-side).
 export const AVATAR_CATALOG = [
-  // v1 — preserved
-  { id: "rpm_casual_1",  url: "https://models.readyplayer.me/64f0265b1db75f90dcfd9e2c.glb", label: "Casual",        tags: ["human"] },
-  { id: "rpm_smart_1",   url: "https://models.readyplayer.me/663833cf6c79010563b91e1b.glb", label: "Smart",         tags: ["human"] },
-  { id: "rpm_cozy_1",    url: "https://models.readyplayer.me/64bfa15f0e72c63d7c3934a6.glb", label: "Cozy",          tags: ["human"] },
-  { id: "rpm_work_1",    url: "https://models.readyplayer.me/64a3f54c1d64e9f3dbc832ac.glb", label: "At Work",       tags: ["human"] },
-  { id: "silly_nub_cat", url: "/models/sillyNubCat.glb",                                     label: "Silly Nub Cat", tags: ["creature"] },
+  { id: "silly_nub_cat", url: "/models/sillyNubCat.glb",                  label: "Cat",      emoji: "🐱", tags: ["creature"] },
+  { id: "elephant",      url: "/models/sillyNubCat.glb?variant=elephant", label: "Elephant", emoji: "🐘", tags: ["creature"] },
+  { id: "penguin",       url: "/models/sillyNubCat.glb?variant=penguin",  label: "Penguin",  emoji: "🐧", tags: ["creature"] },
+  { id: "tiger",         url: "/models/sillyNubCat.glb?variant=tiger",    label: "Tiger",    emoji: "🐯", tags: ["creature"] },
+  { id: "monkey",        url: "/models/sillyNubCat.glb?variant=monkey",   label: "Monkey",   emoji: "🐵", tags: ["creature"] },
 ];
 
-// Accept any RPM-hosted `.glb` as a user-supplied custom avatar.
-const RPM_CUSTOM_RE = /^https:\/\/models\.readyplayer\.me\/[A-Za-z0-9]+\.glb$/;
-
-/** All pre-approved URLs (strict allowlist, excludes custom). */
+/** All accepted avatar URLs (strict allowlist). */
 export const AVATAR_URLS = AVATAR_CATALOG.map((a) => a.url);
 export const DEFAULT_AVATAR_URL = AVATAR_URLS[0];
 
 export const randomAvatarUrl = () =>
   AVATAR_URLS[Math.floor(Math.random() * AVATAR_URLS.length)];
 
-/**
- * Sanitize an avatar URL. Accepts either:
- *   - A URL that matches an entry in AVATAR_CATALOG (ignoring ?queryString), or
- *   - A custom Ready Player Me URL shaped like https://models.readyplayer.me/<id>.glb
- * Anything else falls back to the default.
- */
-export const sanitizeAvatarUrl = (url) => {
-  if (!url || typeof url !== "string") return DEFAULT_AVATAR_URL;
-  const bare = url.split("?")[0];
-  if (AVATAR_URLS.includes(bare)) return url;
-  if (RPM_CUSTOM_RE.test(bare)) return bare;
-  return DEFAULT_AVATAR_URL;
-};
+/** Anything that isn't exactly a catalog URL falls back to the default. */
+export const sanitizeAvatarUrl = (url) =>
+  typeof url === "string" && AVATAR_URLS.includes(url) ? url : DEFAULT_AVATAR_URL;
 
 /** Map avatar id → catalog entry. */
 export const getAvatarById = (id) =>

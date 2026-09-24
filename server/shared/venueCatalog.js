@@ -14,6 +14,8 @@
 import { getLayout } from "./venueLayouts.js";
 import { getHotspots } from "./venueHotspots.js";
 
+import { matchBank } from "./cannedMatcher.js";
+
 export const VENUES = {
   // ═══════ HYDERABAD ═══════════════════════════════════════════════
   "hyd_paradise_biryani": {
@@ -1124,7 +1126,7 @@ export const publicVenue = (venue) => {
 };
 
 /** Return a public projection by id. */
-export const getVenue = (id) => VENUES[id] || null;
+export const getVenue = (id) => (Object.hasOwn(VENUES, id) ? VENUES[id] : null);
 
 /** All venues in a city, public projection. */
 export const venuesInCity = (cityId) =>
@@ -1134,30 +1136,8 @@ export const venuesInCity = (cityId) =>
 export const allVenuesPublic = () => Object.values(VENUES).map(publicVenue);
 
 /**
- * Fuzzy-match a question against a venue's canned answers.
- * Simple approach: token overlap with keyword sets, highest score wins.
- * Returns null if nothing scores above 0.
+ * Match a question against a venue's canned answers (whole-word keyword
+ * matching — see cannedMatcher.js). Returns the entry or null.
  */
-export const matchCannedAnswer = (venue, questionText) => {
-  if (!venue || !venue.conversation || !Array.isArray(venue.conversation.cannedAnswers)) return null;
-  const q = String(questionText || "").toLowerCase();
-  if (!q) return null;
-  const tokens = new Set(q.split(/\W+/).filter((t) => t.length > 2));
-
-  let best = null;
-  let bestScore = 0;
-  for (const entry of venue.conversation.cannedAnswers) {
-    let score = 0;
-    for (const kw of entry.keywords || []) {
-      if (q.includes(kw.toLowerCase())) score += 2;
-      for (const tok of tokens) {
-        if (kw.toLowerCase().includes(tok) || tok.includes(kw.toLowerCase())) score += 1;
-      }
-    }
-    if (score > bestScore) {
-      bestScore = score;
-      best = entry;
-    }
-  }
-  return bestScore > 0 ? best : null;
-};
+export const matchCannedAnswer = (venue, questionText) =>
+  matchBank(venue?.conversation?.cannedAnswers, questionText);

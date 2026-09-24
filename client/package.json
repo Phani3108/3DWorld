@@ -1,5 +1,5 @@
 {
-  "name": "r3f-vite-starter",
+  "name": "3dworld-client",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -12,7 +12,6 @@
     "@react-three/drei": "^9.97.0",
     "@react-three/fiber": "8.13.3",
     "@react-three/postprocessing": "^2.15.1",
-    "@readyplayerme/react-avatar-creator": "^0.3.0",
     "@types/three": "0.152.1",
     "autoprefixer": "^10.4.15",
     "framer-motion": "^10.16.4",

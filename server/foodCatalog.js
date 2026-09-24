@@ -169,4 +169,4 @@ export const foodsForCity = (cityId) =>
   Object.values(FOOD_CATALOG).filter((f) => f.city === cityId);
 
 /** @param {string} foodId */
-export const getFood = (foodId) => FOOD_CATALOG[foodId] || null;
+export const getFood = (foodId) => (Object.hasOwn(FOOD_CATALOG, foodId) ? FOOD_CATALOG[foodId] : null);

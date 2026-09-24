@@ -1,0 +1,24 @@
+# Keep local state, secrets and build output out of images.
+**/node_modules
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+.git
+.github
+client
+docs
+tests
+packages
+server/__tests__
+server/users.json
+server/bonds.json
+server/rooms.json
+server/bot-registry.json
+server/completed_quests.json
+server/conversationLog.json
+server/llmMemory.json
+server/userQuests.json
+server/reputation.json
+server/worldFeed.json
+server/memories

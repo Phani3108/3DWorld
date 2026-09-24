@@ -11,6 +11,9 @@
 import fs from "fs";
 import { atomicWriteJson, readJsonSafe } from "./persistence.js";
 
+// Ids arrive from requests; never let one address Object.prototype.
+const isSafeKey = (k) => typeof k === "string" && k.length > 0 && k !== "__proto__" && k !== "constructor" && k !== "prototype";
+
 const REPUTATION_FILE = "reputation.json";
 let data = readJsonSafe(REPUTATION_FILE, {});
 if (!data || typeof data !== "object") data = {};
@@ -27,13 +30,13 @@ const persist = () => {
 };
 
 export const getReputation = (userId, cityId) => {
-  if (!userId || !cityId) return 0;
-  return (data[userId] && data[userId][cityId]) || 0;
+  if (!isSafeKey(userId) || !isSafeKey(cityId) || !Object.hasOwn(data, userId)) return 0;
+  return (Object.hasOwn(data[userId], cityId) && data[userId][cityId]) || 0;
 };
 
 /** All city scores for a user, sorted desc. */
 export const getUserReputation = (userId) => {
-  if (!userId) return [];
+  if (!isSafeKey(userId) || !Object.hasOwn(data, userId)) return [];
   const byCity = data[userId] || {};
   return Object.entries(byCity)
     .map(([cityId, score]) => ({ cityId, score }))
@@ -42,7 +45,7 @@ export const getUserReputation = (userId) => {
 
 /** Add `delta` reputation to userId in cityId. Negative allowed. */
 export const addReputation = (userId, cityId, delta) => {
-  if (!userId || !cityId) return 0;
+  if (!isSafeKey(userId) || !isSafeKey(cityId)) return 0;
   if (typeof delta !== "number" || delta === 0) return getReputation(userId, cityId);
   if (!data[userId]) data[userId] = {};
   data[userId][cityId] = Math.max(0, (data[userId][cityId] || 0) + delta);

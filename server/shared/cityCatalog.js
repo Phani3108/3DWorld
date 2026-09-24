@@ -28,6 +28,7 @@ export const CITIES = {
     id: "hyderabad",
     name: "Hyderabad",
     country: "India",
+    timezone: "Asia/Kolkata",
     emoji: "🏛️",
     tagline: "City of Nizams — pearls, biryani and Charminar at sunset",
     size: [60, 60],
@@ -60,6 +61,7 @@ export const CITIES = {
     id: "dubai",
     name: "Dubai",
     country: "UAE",
+    timezone: "Asia/Dubai",
     emoji: "🏙️",
     tagline: "Desert turned skyline — souks, sand and tallest tower in the world",
     size: [60, 60],
@@ -92,6 +94,7 @@ export const CITIES = {
     id: "bengaluru",
     name: "Bengaluru",
     country: "India",
+    timezone: "Asia/Kolkata",
     emoji: "🌳",
     tagline: "Garden City — filter coffee, pubs, rain and a lot of code",
     size: [60, 60],
@@ -124,6 +127,7 @@ export const CITIES = {
     id: "mumbai",
     name: "Mumbai",
     country: "India",
+    timezone: "Asia/Kolkata",
     emoji: "🌊",
     tagline: "Maximum City — seven islands of dreams, locals and monsoon chai",
     size: [60, 60],
@@ -156,6 +160,7 @@ export const CITIES = {
     id: "newyork",
     name: "New York",
     country: "USA",
+    timezone: "America/New_York",
     emoji: "🗽",
     tagline: "The city that never sleeps — bagels at 3 a.m., steam from manholes",
     size: [60, 60],
@@ -188,6 +193,7 @@ export const CITIES = {
     id: "singapore",
     name: "Singapore",
     country: "Singapore",
+    timezone: "Asia/Singapore",
     emoji: "🌆",
     tagline: "Garden in a city — hawker stalls, supertrees, rain at 4 p.m.",
     size: [60, 60],
@@ -220,6 +226,7 @@ export const CITIES = {
     id: "sydney",
     name: "Sydney",
     country: "Australia",
+    timezone: "Australia/Sydney",
     emoji: "🏄",
     tagline: "Harbour and sails — flat whites, Bondi swells, opera in a shell",
     size: [60, 60],
@@ -258,6 +265,7 @@ export const publicCity = (city) => {
     id: city.id,
     name: city.name,
     country: city.country,
+    timezone: city.timezone,
     emoji: city.emoji,
     tagline: city.tagline,
     palette: city.palette,
@@ -284,4 +292,4 @@ export const listCitiesPublic = () =>
   Object.values(CITIES).map(publicCity);
 
 /** @returns {object|null} */
-export const getCity = (cityId) => CITIES[cityId] || null;
+export const getCity = (cityId) => (Object.hasOwn(CITIES, cityId) ? CITIES[cityId] : null);

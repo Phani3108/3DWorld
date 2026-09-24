@@ -125,6 +125,21 @@ export function registerSocketHandlers(deps) {
   };
 
   io.on("connection", async (socket) => {
+    // Every handler below is registered through this guard: a malformed or
+    // out-of-order packet (e.g. `move` before `joinRoom`, a missing payload)
+    // must fail that one event, never the process.
+    const rawOn = socket.on.bind(socket);
+    socket.on = (event, handler) =>
+      rawOn(event, (...args) => {
+        const report = (err) => console.error(`[socket] "${event}" from ${socket.id} failed:`, err?.message || err);
+        try {
+          const result = handler(...args);
+          if (result && typeof result.catch === "function") result.catch(report);
+        } catch (err) {
+          report(err);
+        }
+      });
+
     try {
       let room = null;
       let character = null;
@@ -369,6 +384,8 @@ export function registerSocketHandlers(deps) {
       });
 
       socket.on("joinRoom", async (roomId, opts) => {
+        opts = opts && typeof opts === "object" ? opts : {};
+        if (typeof roomId !== "string") return;
         room = getCachedRoom(roomId) || await getOrLoadRoom(roomId, hydrateRoom);
         if (!room) {
           return;
@@ -406,9 +423,16 @@ export function registerSocketHandlers(deps) {
           sessionValid = await validateSessionToken(requestedUserId, requestedSessionToken);
         }
 
-        if (!sessionValid) {
+        // Bots that authenticated with their API key keep their registry
+        // identity; the key is their credential, not a session token.
+        const botKeyIdentity = isOfficialBot && !!socket.data.officialBotKey
+          && botRegistry.get(socket.data.officialBotKey)?.userId === resolvedUserId;
+        if (!sessionValid && !botKeyIdentity) {
           // Either new user or invalid token - generate new identity
           resolvedUserId = createUserId();
+          newSessionToken = createSessionToken();
+        } else if (!sessionValid && botKeyIdentity) {
+          // Mint a session token so the bot can also use session-auth routes.
           newSessionToken = createSessionToken();
         }
 
@@ -808,7 +832,14 @@ export function registerSocketHandlers(deps) {
       });
 
       socket.on("move", async (from, to) => {
-        if (!room) return;
+        if (!room || !character) return;
+        const maxX = room.size[0] * room.gridDivision;
+        const maxY = room.size[1] * room.gridDivision;
+        const isCell = (p) =>
+          Array.isArray(p) && p.length >= 2 &&
+          Number.isInteger(p[0]) && Number.isInteger(p[1]) &&
+          p[0] >= 0 && p[1] >= 0 && p[0] < maxX && p[1] < maxY;
+        if (!isCell(from) || !isCell(to)) return;
         unsitCharacter(room, socket.id, broadcastToRoom);
         const path = findPath(room, from, to);
         if (!path) {

@@ -155,21 +155,19 @@ export const VenueInfoCard = () => {
 
   const handleAskSeed = async (seed) => {
     const userId = localStorage.getItem("3dworld_user_id");
+    setAskMsg({ type: "info", text: "Asking…" });
     try {
+      // The server resolves a venue id to that venue's host resident.
       const res = await askAgent(userId, username, venue.host || venue.id, seed, roomID, venue.id);
-      // If the server returned a canned answer immediately, it's already been
-      // broadcast as an in-world chat bubble and recorded as a 🧠 learned fact.
-      // Otherwise the question is queued for a real bot.
       if (res.answer) {
-        setAskMsg({ type: "ok", text: "Host answered in chat — also saved as a 🧠 learned fact." });
-      } else if (res.channel === "polling") {
-        setAskMsg({ type: "info", text: "Question queued — any agent logged in as host will answer." });
+        // Keep the answer on the card (not just a 5s bubble) until the next ask.
+        setAskMsg({ type: "answer", who: res.resident?.name || venue.name, question: seed, text: res.answer });
       } else {
-        setAskMsg({ type: "ok", text: "Sent. Watch the in-world chat." });
+        setAskMsg({ type: "info", text: "Question queued — the host will answer in chat." });
+        setTimeout(() => setAskMsg(null), 4000);
       }
-      setTimeout(() => setAskMsg(null), 4000);
     } catch (e) {
-      setAskMsg({ type: "error", text: e.message });
+      setAskMsg({ type: "error", text: /→ 401/.test(e.message) ? "Session expired — reload to reconnect." : "Couldn't ask right now. Try again?" });
       setTimeout(() => setAskMsg(null), 3500);
     }
   };
@@ -363,11 +361,19 @@ export const VenueInfoCard = () => {
             {buyMsg.text}
           </div>
         )}
-        {askMsg && (
-          <div className={`px-4 py-2 text-[11px] font-medium ${askMsg.type === "ok" ? "bg-emerald-500/20 text-emerald-300" : askMsg.type === "error" ? "bg-rose-500/20 text-rose-300" : "bg-sky-500/20 text-sky-300"}`}>
+        {askMsg && askMsg.type === "answer" ? (
+          <div className="px-4 py-3 bg-emerald-500/10 border-t border-emerald-500/20" aria-live="polite">
+            <div className="text-xs text-gray-400 mb-1">You asked: “{askMsg.question}”</div>
+            <div className="text-sm text-emerald-50 leading-snug">
+              <span className="font-semibold text-emerald-300">{askMsg.who}: </span>{askMsg.text}
+            </div>
+            <div className="text-xs text-gray-400 mt-1.5">Saved to your 🧠 library.</div>
+          </div>
+        ) : askMsg ? (
+          <div role={askMsg.type === "error" ? "alert" : "status"} className={`px-4 py-2 text-xs font-medium ${askMsg.type === "error" ? "bg-rose-500/20 text-rose-200" : "bg-sky-500/20 text-sky-200"}`}>
             {askMsg.text}
           </div>
-        )}
+        ) : null}
       </motion.div>
     </AnimatePresence>
   );

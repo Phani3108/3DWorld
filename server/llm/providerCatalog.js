@@ -1,208 +1,198 @@
 /**
- * LLM provider abstraction — Phase 8A.
+ * LLM providers.
  *
- * Three providers are supported:
- *   • "anthropic" — Claude Sonnet/Haiku via /v1/messages
- *   • "openai"    — GPT-4o-mini / GPT-4o via /v1/chat/completions
- *   • "stub"      — deterministic echo; used when no API key is set so
- *                   the demo still visibly exercises the LLM path without
- *                   costing anything.
+ *   • "anthropic" — Claude through the official SDK (default model
+ *                   claude-opus-5-5).
+ *   • "stub"      — no network; answers from the resident's own lines.
+ *                   Used by tests and when no API key is configured.
  *
- * Selection:
- *   env LLM_PROVIDER=anthropic|openai|stub (default: auto — picks first
- *                   provider whose API key is set, else "stub")
- *   env LLM_API_KEY=...
- *   env LLM_MODEL=...  (default: sensible per-provider)
+ * Selection: LLM_PROVIDER=anthropic|stub, otherwise "anthropic" when
+ * ANTHROPIC_API_KEY (or LLM_API_KEY) is set, else "stub".
+ * Tuning: LLM_MODEL (default claude-opus-5-5), LLM_EFFORT (default low).
  *
- * Each provider exposes `answer({ system, user, history })` returning
- * `{ ok: true, text }` on success or `{ ok: false, error, retryable }`.
- * Never throws — callers always receive the result envelope.
+ * `answer()` never throws: callers always get { ok: true, ... } or
+ * { ok: false, error, retryable }.
+ *
+ * Opus 5.5 notes that shape the request:
+ *   • Thinking is always on and can't be disabled; `output_config.effort`
+ *     is the latency/cost dial. Chat runs at "low".
+ *   • Thinking tokens count toward max_tokens, so the cap leaves headroom
+ *     even though replies are ~80 words.
+ *   • Sampling params (temperature etc.), prefill and forced tool_choice
+ *     are rejected — none are sent.
+ *   • A safety decline arrives as stop_reason "refusal"; server-side
+ *     `fallbacks: "default"` re-runs declined requests on a fallback model.
  */
 
-const ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-4-5";
-const OPENAI_DEFAULT_MODEL    = "gpt-4o-mini";
-const MAX_ANSWER_TOKENS       = 300;   // short enough to stay conversational
-const REQUEST_TIMEOUT_MS      = 15_000;
+import Anthropic from "@anthropic-ai/sdk";
 
-const envKey = () => process.env.LLM_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || "";
-const envModel = () => process.env.LLM_MODEL || "";
+export const CLAUDE_DEFAULT_MODEL = "claude-opus-5-5";
+const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
+const DEFAULT_EFFORT = "low";
+const DEFAULT_MAX_TOKENS = 4096;
+const REQUEST_TIMEOUT_MS = 45_000;
+const FALLBACK_BETA = "server-side-fallback-2026-07-01";
+
+const apiKey = () => process.env.ANTHROPIC_API_KEY || process.env.LLM_API_KEY || "";
+
+export const configuredModel = () => process.env.LLM_MODEL || CLAUDE_DEFAULT_MODEL;
+
+export const configuredEffort = () => {
+  const e = String(process.env.LLM_EFFORT || "").toLowerCase();
+  return EFFORT_LEVELS.includes(e) ? e : DEFAULT_EFFORT;
+};
 
 const resolveProviderId = () => {
-  const raw = (process.env.LLM_PROVIDER || "").toLowerCase();
-  if (raw === "anthropic" || raw === "openai" || raw === "stub") return raw;
-  // Auto: prefer Anthropic if ANTHROPIC_API_KEY, then OpenAI, then stub.
-  if (process.env.ANTHROPIC_API_KEY || /^sk-ant-/i.test(envKey())) return "anthropic";
-  if (process.env.OPENAI_API_KEY    || /^sk-[A-Za-z0-9]/i.test(envKey())) return "openai";
-  return "stub";
+  const raw = String(process.env.LLM_PROVIDER || "").toLowerCase();
+  if (raw === "anthropic" || raw === "stub") return raw;
+  return apiKey() ? "anthropic" : "stub";
 };
 
-/**
- * Wrap fetch with a timeout — bare `AbortController` pattern so Node's
- * built-in fetch (Node 18+) works without extra deps.
- */
-const timedFetch = async (url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) => {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { ...options, signal: ctrl.signal });
-    return res;
-  } finally {
-    clearTimeout(timer);
+// Optional request features. If the API rejects one with a 400 we drop it
+// for the rest of the process and retry once: a missing beta should
+// degrade residents, not take them offline.
+const features = { fallbacks: true, midConversationSystem: true };
+
+let sdkClient = null;
+const getClient = () => {
+  if (!sdkClient) {
+    sdkClient = new Anthropic({
+      apiKey: apiKey() || undefined,
+      timeout: REQUEST_TIMEOUT_MS,
+      maxRetries: 1,
+    });
   }
+  return sdkClient;
 };
 
-// ── Anthropic ────────────────────────────────────────────────────────
+/** Test hooks: inject a fake SDK client / reset downgraded features. */
+export const __setClaudeClient = (client) => { sdkClient = client; };
+export const __resetClaudeFeatures = () => {
+  features.fallbacks = true;
+  features.midConversationSystem = true;
+};
+export const claudeFeatures = () => ({ ...features });
+
+const withLiveContext = (messages, liveContext) => {
+  if (!liveContext) return messages;
+  if (features.midConversationSystem) {
+    // Mid-conversation system message: operator-authority context that sits
+    // after the cached prefix. Must follow a user turn and end the list.
+    return [...messages, { role: "system", content: liveContext }];
+  }
+  const last = messages[messages.length - 1];
+  const folded = `${last.content}\n\n<world_context>\n${liveContext}\n</world_context>`;
+  return [...messages.slice(0, -1), { role: "user", content: folded }];
+};
+
+export const buildClaudeRequest = ({ system, messages, liveContext, model, effort, maxTokens }) => {
+  const req = {
+    model: model || configuredModel(),
+    max_tokens: maxTokens || DEFAULT_MAX_TOKENS,
+    output_config: { effort: effort || configuredEffort() },
+    system,
+    messages: withLiveContext(messages, liveContext),
+  };
+  if (features.fallbacks) {
+    req.betas = [FALLBACK_BETA];
+    req.fallbacks = "default";
+  }
+  return req;
+};
+
+const textOf = (message) =>
+  (message?.content || [])
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("")
+    .trim();
+
+/** Drop whichever optional feature a 400 names; false if none applied. */
+const downgradeFor = (err) => {
+  const msg = String(err?.message || "").toLowerCase();
+  let changed = false;
+  if (features.fallbacks && msg.includes("fallback")) { features.fallbacks = false; changed = true; }
+  if (features.midConversationSystem && (msg.includes("role") || msg.includes("system"))) {
+    features.midConversationSystem = false;
+    changed = true;
+  }
+  if (!changed && (features.fallbacks || features.midConversationSystem)) {
+    // Unrecognised 400: shed both optional features once before giving up.
+    features.fallbacks = false;
+    features.midConversationSystem = false;
+    changed = true;
+  }
+  return changed;
+};
+
+const errorEnvelope = (err) => {
+  if (err instanceof Anthropic.AuthenticationError) return { ok: false, error: "auth", retryable: false };
+  if (err instanceof Anthropic.RateLimitError) return { ok: false, error: "rate_limited", retryable: true };
+  if (err instanceof Anthropic.APIConnectionTimeoutError) return { ok: false, error: "timeout", retryable: true };
+  if (err instanceof Anthropic.APIConnectionError) return { ok: false, error: "network_error", retryable: true };
+  if (err instanceof Anthropic.APIError) {
+    return { ok: false, error: `anthropic_${err.status ?? "error"}`, detail: err.message, retryable: (err.status ?? 500) >= 500 };
+  }
+  return { ok: false, error: "exception", detail: err?.message, retryable: false };
+};
+
 const anthropicProvider = {
   id: "anthropic",
-  model: envModel() || ANTHROPIC_DEFAULT_MODEL,
-  async answer({ system, user, history = [] }) {
-    const apiKey = process.env.ANTHROPIC_API_KEY || envKey();
-    if (!apiKey) return { ok: false, error: "no_api_key", retryable: false };
-    const messages = [];
-    for (const h of history) {
-      messages.push({ role: h.role === "resident" ? "assistant" : "user", content: h.text });
-    }
-    messages.push({ role: "user", content: user });
-    try {
-      const res = await timedFetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key":         apiKey,
-          "anthropic-version": "2023-06-01",
-          "content-type":      "application/json",
-        },
-        body: JSON.stringify({
-          model:      this.model,
-          max_tokens: MAX_ANSWER_TOKENS,
-          system,
-          messages,
-        }),
-      });
-      if (!res.ok) {
-        const status = res.status;
-        const txt = await res.text().catch(() => "");
-        return { ok: false, error: `anthropic_${status}`, detail: txt.slice(0, 200), retryable: status >= 500 || status === 429 };
+  get model() { return configuredModel(); },
+  /**
+   * @param {{ system: object[], messages: object[], liveContext?: string,
+   *           effort?: string, maxTokens?: number }} args
+   */
+  async answer(args) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let message;
+      try {
+        message = await getClient().beta.messages.create(buildClaudeRequest(args));
+      } catch (err) {
+        if (attempt === 0 && err instanceof Anthropic.BadRequestError && downgradeFor(err)) {
+          console.warn("[llm] request rejected, retrying without optional features:", err.message);
+          continue;
+        }
+        const env = errorEnvelope(err);
+        console.warn(`[llm] ${env.error}${env.detail ? `: ${env.detail}` : ""}`);
+        return env;
       }
-      const data = await res.json();
-      const text = Array.isArray(data?.content)
-        ? data.content.map((b) => b.text).filter(Boolean).join("\n").trim()
-        : "";
-      if (!text) return { ok: false, error: "empty_response", retryable: true };
-      return { ok: true, text, usage: data?.usage || null };
-    } catch (e) {
-      return { ok: false, error: e?.name === "AbortError" ? "timeout" : "network_error", detail: e?.message, retryable: true };
-    }
-  },
-};
-
-// ── OpenAI ───────────────────────────────────────────────────────────
-const openaiProvider = {
-  id: "openai",
-  model: envModel() || OPENAI_DEFAULT_MODEL,
-  async answer({ system, user, history = [] }) {
-    const apiKey = process.env.OPENAI_API_KEY || envKey();
-    if (!apiKey) return { ok: false, error: "no_api_key", retryable: false };
-    const messages = [{ role: "system", content: system }];
-    for (const h of history) {
-      messages.push({ role: h.role === "resident" ? "assistant" : "user", content: h.text });
-    }
-    messages.push({ role: "user", content: user });
-    try {
-      const res = await timedFetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "authorization": `Bearer ${apiKey}`,
-          "content-type":  "application/json",
-        },
-        body: JSON.stringify({
-          model:       this.model,
-          max_tokens:  MAX_ANSWER_TOKENS,
-          temperature: 0.7,
-          messages,
-        }),
-      });
-      if (!res.ok) {
-        const status = res.status;
-        const txt = await res.text().catch(() => "");
-        return { ok: false, error: `openai_${status}`, detail: txt.slice(0, 200), retryable: status >= 500 || status === 429 };
+      const base = { usage: message.usage || null, model: message.model, stopReason: message.stop_reason };
+      if (message.stop_reason === "refusal") {
+        return { ok: false, error: "refusal", category: message.stop_details?.category ?? null, retryable: false, ...base };
       }
-      const data = await res.json();
-      const text = data?.choices?.[0]?.message?.content?.trim() || "";
-      if (!text) return { ok: false, error: "empty_response", retryable: true };
-      return { ok: true, text, usage: data?.usage || null };
-    } catch (e) {
-      return { ok: false, error: e?.name === "AbortError" ? "timeout" : "network_error", detail: e?.message, retryable: true };
+      const text = textOf(message);
+      if (!text) return { ok: false, error: message.stop_reason === "max_tokens" ? "max_tokens" : "empty_response", retryable: false, ...base };
+      return { ok: true, text, ...base };
     }
+    return { ok: false, error: "exhausted", retryable: false };
   },
 };
 
 // ── Stub (no network) ────────────────────────────────────────────────
-// When someone explicitly forces `LLM_PROVIDER=stub` for testing the
-// real-LLM code path without burning credits, the stub still has to
-// return *something*. Earlier versions echoed "(Real-LLM answer would
-// go here…)" which is ugly demo glue. Instead we now pull a line from
-// the resident's `defaultLines` (parsed out of the system prompt's
-// "Example lines in your voice: …" segment) so stubbed answers sound
-// like the resident's voice.
-//
-// Note: this provider is NEVER selected for the live demo path —
-// httpRoutes.js's ask handler explicitly skips LLM when getActiveProvider()
-// is "stub" so the canned banks (Phase 7E.4) fire instead. This branch
-// only runs for tests + explicit dev opt-in.
+// Speaks one of the resident's own lines so stubbed answers still sound
+// like them. The live Ask route never uses the stub for visitors — when
+// no key is configured it serves the curated canned banks instead.
 const STUB_FALLBACK_LINES = [
   "Tell me more — I love this kind of question.",
   "Funny you ask. Sit down for a minute.",
   "Good question, friend. Let me think.",
 ];
 
-const extractDefaultLines = (system) => {
-  // System prompt format from llmService.js:
-  //   `Example lines in your voice: "L1" / "L2" / "L3".`
-  const m = system.match(/Example lines in your voice:\s*(.+?)\.(?:\s|$)/);
-  if (!m) return null;
-  const out = [];
-  const re = /"([^"]+)"/g;
-  let next;
-  while ((next = re.exec(m[1])) !== null) out.push(next[1]);
-  return out.length > 0 ? out : null;
-};
-
-const extractPersonaName = (system) => {
-  const m = system.match(/You are\s+([^,.]+?)[,.]/i);
-  return m ? m[1].trim() : null;
-};
-
 const stubProvider = {
   id: "stub",
   model: "stub-default-lines",
-  async answer({ system }) {
-    const lines = extractDefaultLines(system) || STUB_FALLBACK_LINES;
+  async answer({ persona } = {}) {
+    const lines = persona?.defaultLines?.length ? persona.defaultLines : STUB_FALLBACK_LINES;
     const text = lines[Math.floor(Math.random() * lines.length)];
-    const name = extractPersonaName(system);
-    // Occasionally prefix the speaker for a touch of warmth, mostly not.
-    return {
-      ok: true,
-      text: name && Math.random() < 0.25 ? `${name}: ${text}` : text,
-      usage: null,
-      stub: true,
-    };
+    return { ok: true, text, usage: null, model: "stub-default-lines", stub: true };
   },
 };
 
-const PROVIDERS = {
-  anthropic: anthropicProvider,
-  openai:    openaiProvider,
-  stub:      stubProvider,
-};
+const PROVIDERS = { anthropic: anthropicProvider, stub: stubProvider };
 
-export const getActiveProvider = () => {
-  const id = resolveProviderId();
-  return PROVIDERS[id] || PROVIDERS.stub;
-};
+export const getActiveProvider = () => PROVIDERS[resolveProviderId()] || stubProvider;
 
 export const listProviders = () => Object.values(PROVIDERS).map((p) => ({ id: p.id, model: p.model }));
 
-/** Low-level helper, mostly for tests. */
 export const getProviderById = (id) => PROVIDERS[id] || null;
-
-export const MAX_LLM_ANSWER_TOKENS = MAX_ANSWER_TOKENS;

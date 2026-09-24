@@ -80,11 +80,10 @@ const ensureProfileDefaults = (user) => {
   if (!Array.isArray(user.personaTags)) user.personaTags = [];
   // Phase 7H — cumulative XP (tier derived at projection time).
   if (user.xp === undefined) user.xp = 0;
-  // Phase 10F + 11A — every user gets an AI-portrait by default. The
-  // billboard becomes the visible body; the cartoon GLB only renders
-  // when the user explicitly opts out. DiceBear personas is a free
-  // hosted SVG service — see server/shared/avatarDefaults.js.
-  if (user.usePhotoAvatar === undefined) user.usePhotoAvatar = true;
+  // Portrait-as-body is opt-in (WelcomeModal toggle). Humans default to
+  // the 3D avatar they picked; residents render as portraits client-side.
+  // DiceBear stays as the default portrait for profile cards.
+  if (user.usePhotoAvatar === undefined) user.usePhotoAvatar = false;
   if (user.avatarPhotoUrl === undefined || user.avatarPhotoUrl === null) {
     user.avatarPhotoUrl = dicebearUrl(user.id || `anon_${Date.now()}`);
   }

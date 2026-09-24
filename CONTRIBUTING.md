@@ -4,7 +4,7 @@ Thanks for contributing to 3D World.
 
 ## Development Setup
 
-1. Install Node.js 18+.
+1. Install Node.js 22+ (the server's test runner needs ≥ 20.19).
 2. Install dependencies in each workspace:
    - `cd server && npm install`
    - `cd client && npm install`
@@ -14,10 +14,11 @@ Thanks for contributing to 3D World.
 
 ## Branching and Pull Requests
 
-1. Create a branch from `master`.
+1. Create a branch from `main`.
 2. Keep changes scoped and documented.
 3. Open a pull request using the PR template.
-4. Include:
+4. Make sure `cd server && npm test` and `cd client && npm run build` pass (CI runs both).
+5. Include:
    - What changed.
    - Why it changed.
    - How you validated the change.

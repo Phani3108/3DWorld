@@ -5,12 +5,12 @@ services:
     rootDir: server
     plan: free
     autoDeploy: true
-    buildCommand: npm install
+    buildCommand: npm ci --omit=dev
     startCommand: npm run start
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
-        value: 20
+        value: 22
       - key: DEV_MODE
         value: "0"
       - key: OPEN_ACCESS
@@ -23,3 +23,10 @@ services:
         sync: false
       - key: EXTRA_ALLOWED_ORIGIN
         sync: false
+      # Claude resident answers (optional). Leave unset to serve curated answers only.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: LLM_DAILY_BUDGET_USD
+        value: "2"
+      - key: LLM_USER_DAILY_TURNS
+        value: "25"

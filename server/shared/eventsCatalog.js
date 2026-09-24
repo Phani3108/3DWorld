@@ -2,21 +2,20 @@
  * Events catalog — Phase 9G (post-audit).
  *
  * Time-bound resident gatherings. Each event is a scheduled "live" slot
- * at a venue with a recurring weekly slot in server-local time, run by
- * the venue's host. While an event is active, the venue lights up:
- *   • VenueInfoCard shows a 🟢 LIVE NOW chip with the event title.
- *   • Ambient dialogues swap to the event-specific scene pool.
- *   • Asking the host triggers an event-themed canned bank suffix
- *     (encoded as extra keywords on the venue's existing answers).
+ * at a venue with a recurring weekly slot in the city's local time, run
+ * by the venue's host. While an event is active, the VenueInfoCard shows
+ * a 🟢 LIVE NOW chip and the host's Ask replies know it's on.
  *
- * Schedule: dayOfWeek (0=Sun..6=Sat) + startHour + durationHours, all in
- * the server's local clock (same as Phase 7K time-of-day lines).
+ * Schedule: dayOfWeek (0=Sun..6=Sat) + startHour + durationHours, in the
+ * event city's local clock (cityCatalog `timezone`, see cityTime.js).
  *
  * Why a fixed catalog (no admin UI yet)?
  *   The point is to *anchor* social presence — players know "Friday 9pm
  *   at Church Street, Anu's set". User-generated events come later when
  *   the contributor pipeline matures.
  */
+
+import { weeklyWindowRemainingMs } from "./cityTime.js";
 
 export const EVENTS = {
   // Hyderabad — weekend biryani special
@@ -167,7 +166,7 @@ export const EVENTS = {
 };
 
 export const listEventIds = () => Object.keys(EVENTS);
-export const getEvent = (id) => EVENTS[id] || null;
+export const getEvent = (id) => (Object.hasOwn(EVENTS, id) ? EVENTS[id] : null);
 export const eventsAtVenue = (venueId) =>
   Object.values(EVENTS).filter((e) => e.venueId === venueId);
 export const eventsInCity = (cityId) =>
@@ -175,17 +174,13 @@ export const eventsInCity = (cityId) =>
 export const allEventsPublic = () => Object.values(EVENTS);
 
 /**
- * Is this event currently live? Compares against server-local time.
+ * Is this event currently live in its city's local time?
  * Returns null when not live, or { event, msRemaining } when live.
  */
 export const isLive = (event, now = new Date()) => {
   if (!event?.schedule) return null;
-  const { dayOfWeek, startHour, durationHours } = event.schedule;
-  if (now.getDay() !== dayOfWeek) return null;
-  const startMs = new Date(now).setHours(startHour, 0, 0, 0);
-  const endMs   = startMs + durationHours * 3600 * 1000;
-  if (now.getTime() < startMs || now.getTime() >= endMs) return null;
-  return { event, msRemaining: endMs - now.getTime() };
+  const msRemaining = weeklyWindowRemainingMs(event.cityId, event.schedule, now);
+  return msRemaining == null ? null : { event, msRemaining };
 };
 
 /** Return the live event at a venue right now, or null. */
