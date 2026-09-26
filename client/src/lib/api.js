@@ -9,13 +9,14 @@ const SERVER_URL =
   import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
 
 // The server issues a session token on roomJoined; every mutating user
-// route requires it (userIds alone are public and prove nothing).
-export const sessionHeaders = () => {
+// route requires it (userIds alone are public and prove nothing). It rides
+// in the JSON body, not a custom header, so writes need no extra CORS
+// allowance and work against any server version during a deploy.
+export const sessionToken = () => {
   try {
-    const token = localStorage.getItem("3dworld_session_token");
-    return token ? { "X-Session-Token": token } : {};
+    return localStorage.getItem("3dworld_session_token") || undefined;
   } catch {
-    return {};
+    return undefined;
   }
 };
 
@@ -30,8 +31,8 @@ const getJSON = async (path) => {
 const postJSON = async (path, body) => {
   const res = await fetch(`${SERVER_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...sessionHeaders() },
-    body: JSON.stringify(body || {}),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...(body || {}), sessionToken: sessionToken() }),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
