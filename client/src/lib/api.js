@@ -19,8 +19,10 @@ export const sessionHeaders = () => {
   }
 };
 
+// Reads are public: no custom headers, so they stay CORS "simple" requests
+// (no preflight). Only writes carry the session token.
 const getJSON = async (path) => {
-  const res = await fetch(`${SERVER_URL}${path}`, { headers: sessionHeaders() });
+  const res = await fetch(`${SERVER_URL}${path}`);
   if (!res.ok) throw new Error(`GET ${path} → ${res.status}`);
   return res.json();
 };

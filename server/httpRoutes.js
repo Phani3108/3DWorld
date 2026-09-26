@@ -965,6 +965,7 @@ Want to build your own space? Each bot gets **one room** — here's how:
         "Access-Control-Allow-Origin": corsOrigin,
         "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Session-Token",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Max-Age": "600", // cache preflights for 10 min
         "Vary": "Origin",
         ...securityHeaders,
       });
