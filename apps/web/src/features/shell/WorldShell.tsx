@@ -5,6 +5,7 @@ import { Tabs } from "radix-ui";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api.ts";
 import { useDistrictGeometry } from "../../lib/districtGeometry.ts";
+import { loadScene } from "../../lib/loadScene.ts";
 import { connect, disconnect, joinDistrict } from "../../lib/realtime.ts";
 import { narrationAtom, panelAtom, placeAtom, sessionAtom } from "../../state/store.ts";
 import { ChatLog } from "./ChatLog.tsx";
@@ -15,7 +16,7 @@ import { Palette } from "./Palette.tsx";
 import { TopBar } from "./TopBar.tsx";
 import { WorldMap } from "./WorldMap.tsx";
 
-const Scene = lazy(() => import("../scene/Scene.tsx").then((m) => ({ default: m.Scene })));
+const Scene = lazy(() => loadScene().then((m) => ({ default: m.Scene })));
 
 const TABS = [
   ["chats", "Chats"],
