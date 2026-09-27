@@ -1,0 +1,68 @@
+@import "tailwindcss";
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/atkinson-hyperlegible-next";
+
+/* "Dusk Bazaar" — contrast-checked against WCAG 2.2 AA on --color-ink. */
+@theme {
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Atkinson Hyperlegible Next Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #10131f;
+  --color-panel: #171b2b;
+  --color-panel-2: #1f2438;
+  --color-line: #2c3350;
+  --color-text: #f4f1ea;
+  --color-muted: #b4b8c9;
+  --color-amber: #f0b34a;
+  --color-amber-ink: #1b1405;
+  --color-teal: #62cfc6;
+  --color-rose: #f58a8a;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--color-ink);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-teal);
+    outline-offset: 2px;
+  }
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+}
+
+@utility panel {
+  background: color-mix(in oklab, var(--color-panel) 92%, transparent);
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  backdrop-filter: blur(10px);
+}
+
+@utility tap {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: the reduced-motion override must win */
+    animation-duration: 0.001ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: the reduced-motion override must win */
+    transition-duration: 0.001ms !important;
+  }
+}

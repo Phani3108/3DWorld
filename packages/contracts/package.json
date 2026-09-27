@@ -1,0 +1,16 @@
+{
+  "name": "@3dworld/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Zod schemas + inferred types for every REST route and socket event.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  }
+}

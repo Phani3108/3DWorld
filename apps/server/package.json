@@ -1,0 +1,32 @@
+{
+  "name": "@3dworld/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "3D World realtime + API server (Hono, Socket.IO, Drizzle on Postgres/PGlite).",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "node --watch --env-file-if-exists=.env src/index.ts",
+    "start": "node --env-file-if-exists=.env src/index.ts",
+    "typecheck": "tsc -p .",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@3dworld/content": "file:../../packages/content",
+    "@3dworld/contracts": "file:../../packages/contracts",
+    "@electric-sql/pglite": "0.5.8",
+    "@hono/node-server": "2.1.1",
+    "drizzle-orm": "0.45.3",
+    "hono": "4.13.9",
+    "pg": "8.23.0",
+    "socket.io": "4.8.4",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.0",
+    "drizzle-kit": "0.31.11",
+    "socket.io-client": "4.8.4"
+  }
+}

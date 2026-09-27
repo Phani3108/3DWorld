@@ -41,3 +41,56 @@ jobs:
           cache-dependency-path: client/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  stack:
+    name: New stack — lint, types, content, tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run content:validate
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_API_URL: http://localhost:4000
+      - uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: apps/web/dist
+          retention-days: 3
+
+  e2e:
+    name: New stack — browser journey (Playwright + axe)
+    needs: stack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - uses: actions/download-artifact@v8
+        with:
+          name: web-dist
+          path: apps/web/dist
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - run: npx playwright test
+        working-directory: apps/web
+        env:
+          CI: "1"
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7

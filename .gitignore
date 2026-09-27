@@ -15,3 +15,14 @@ server/conversationLog.json
 server/llmMemory.json
 server/userQuests.json
 server/reputation.json
+
+# New TypeScript stack (apps/*, packages/*)
+node_modules/
+dist/
+.pglite/
+apps/server/.data/
+apps/web/test-results/
+apps/web/playwright-report/
+*.tsbuildinfo
+.env
+.env.local
