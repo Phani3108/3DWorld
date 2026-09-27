@@ -21,10 +21,10 @@ describe("world content", () => {
     expect(report.stats).toMatchObject({ cities: 7, places: 21, residents: 28 });
   });
 
-  it("flags every real business for the naming decision", () => {
-    const flagged = validateWorld(world).warnings.filter((w) => w.includes("naming decision"));
+  it("uses fictional venues, not real businesses staffed by invented residents", () => {
     const real = [...world.places.values()].filter((p) => p.likeness === "real-business");
-    expect(flagged).toHaveLength(real.length);
+    expect(real.map((p) => p.name)).toEqual([]);
+    expect(validateWorld(world).warnings).toEqual([]);
   });
 
   it("rejects duplicate ids and schema errors", () => {
@@ -61,19 +61,21 @@ describe("public projections", () => {
 
 describe("curated-bank matcher", () => {
   it.each([
-    ["blr_mtr", "What city is this?"],
+    ["blr_namma_tiffin_mane", "What city is this?"],
     ["nyc_bodega", "Who won the 1997 World Series?"],
     ["syd_bondi_chippery", "I understand. Thanks!"],
-    ["hyd_niloufer_cafe", "Who is the current Nizam?"],
-    ["hyd_paradise_biryani", "How is the weather today?"],
-    ["blr_mtr", "how long does dum take?"],
+    ["hyd_gulzar_irani_cafe", "Who is the current Nizam?"],
+    ["hyd_shahi_handi", "How is the weather today?"],
+    ["blr_namma_tiffin_mane", "how long does dum take?"],
   ])("%s: %j → no match", (placeId, q) => {
     expect(ask(placeId, q)).toBeNull();
   });
 
   it("still finds the right answer for real questions", () => {
-    expect(ask("hyd_paradise_biryani", "tell me about dum cooking")?.answer).toMatch(/sealed pot/);
-    expect(ask("blr_mtr", "what makes the filter coffee special?")?.answer).toMatch(/Tumbler/);
+    expect(ask("hyd_shahi_handi", "tell me about dum cooking")?.answer).toMatch(/sealed pot/);
+    expect(ask("blr_namma_tiffin_mane", "what makes the filter coffee special?")?.answer).toMatch(
+      /Tumbler/,
+    );
     expect(matchBank(resident("zara_hyd").canned, "how long does dum take?")?.answer).toMatch(
       /Thirty-five minutes/,
     );
@@ -90,7 +92,7 @@ describe("curated-bank matcher", () => {
   });
 
   it("tokenizes accents and non-Latin scripts", () => {
-    expect(tokenize("Café Niloufer — chai?")).toEqual(["cafe", "niloufer", "chai"]);
+    expect(tokenize("Café Gulzar — chai?")).toEqual(["cafe", "gulzar", "chai"]);
     expect(tokenize("हैदराबादी biryani")).toEqual(["हैदराबादी", "biryani"]);
     expect(tokenize("مرحبا habibi")).toEqual(["مرحبا", "habibi"]);
   });

@@ -52,6 +52,8 @@ export const District = z.strictObject({
   origin: LatLon,
   radiusM: z.number().min(100).max(3000),
   spawn: LatLon,
+  /** Arrival view, degrees clockwise from north (e.g. along the street, or out to sea). */
+  spawnHeadingDeg: z.number().gte(0).lt(360).optional(),
   geometry: z.string().optional(),
   attribution: z.array(z.string()).default([]),
 });
@@ -81,6 +83,8 @@ export const Place = z.strictObject({
   location: LatLon,
   /** real = surveyed location; approximate = within ~100 m; relocated = placed in this district for play, not where it really is. */
   placement: z.enum(["real", "approximate", "relocated"]),
+  /** Street-front spot from compiled map data: where the door is, and the yaw facing the street. */
+  frontage: z.strictObject({ location: LatLon, yawDeg: z.number() }).optional(),
   radiusM: z.number().positive().max(200),
   hostId: Id.optional(),
   menu: z.array(Id).default([]),

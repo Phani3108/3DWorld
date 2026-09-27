@@ -68,49 +68,47 @@ export default defineCity({
       },
       radiusM: 800,
       spawn: {
-        lat: 40.7575,
-        lon: -73.986,
+        lat: 40.757463,
+        lon: -73.985918,
       },
+      // Up Broadway / Seventh Avenue into Times Square.
+      spawnHeadingDeg: 30,
+      geometry: "nyc-midtown",
       attribution: ["© OpenStreetMap contributors (ODbL)"],
     },
   ],
   places: [
     {
-      id: "nyc_katz",
+      id: "nyc_brisket_rye",
       districtId: "nyc-midtown",
       kind: "deli",
-      name: "Katz's Delicatessen",
+      name: "Brisket & Rye",
       emoji: "🥪",
-      blurb: "Lower East Side, since 1888. Pastrami hand-cut, mustard mandatory.",
-      likeness: "real-business",
+      blurb: "Old-school Jewish deli off Times Square. Pastrami hand-cut, mustard mandatory.",
+      likeness: "generic",
       location: {
         lat: 40.7565,
         lon: -73.988,
       },
-      placement: "relocated",
+      placement: "approximate",
+      frontage: { location: { lat: 40.756584, lon: -73.987938 }, yawDeg: 209 },
       radiusM: 12,
       hostId: "marcus_nyc",
       menu: ["pastrami-on-rye", "hot-dog"],
       facts: [
         {
-          text: "Katz's opened in 1888 on the Lower East Side.",
-          status: "corrected",
-          note: "Dropped 'same spot' — the deli moved across the street early on. Real business: verify or fictionalise.",
+          text: "Pastrami came to New York with Romanian Jewish immigrants in the late 1800s.",
         },
         {
           text: "They hand-cut every pastrami. Slicer machines are for chain stores.",
-        },
-        {
-          text: "The famous 'When Harry Met Sally' scene was filmed here — a sign hangs over the table.",
-          status: "corrected",
-          note: "Table number unverified.",
+          kind: "flavour",
         },
       ],
       conversation: {
         greeting: "What can I get ya? C'mon, there's a line.",
         seeds: [
           "How is pastrami different from corned beef?",
-          "Why does Katz's still hand-cut?",
+          "Why hand-cut the pastrami?",
           "What's the story of Lower East Side delis?",
           "Teach me some New York slang",
         ],
@@ -129,17 +127,12 @@ export default defineCity({
           {
             keywords: ["lower", "east", "side", "delis", "history", "jewish"],
             answer:
-              "Lower East Side was the first stop for Eastern European Jews — 1880s through the 1920s. Delis were pushcart food made indoors. Katz's, Russ & Daughters, Yonah Schimmel. Most delis closed — rent, chains, grandkids don't wanna work here. The survivors matter more because of it.",
+              "Lower East Side was the first stop for Eastern European Jews — 1880s through the 1920s. Delis were pushcart food made indoors. A few old ones still stand downtown — Katz's, Russ & Daughters, Yonah Schimmel. Most delis closed — rent, chains, grandkids don't wanna work here. The survivors matter more because of it.",
           },
           {
             keywords: ["slang", "new", "york", "teach", "nyc"],
             answer:
               "Alright pal — 'deadass' means I'm serious. 'No cap' means no lie. 'Bodega' is the corner store. 'Wilding' is acting crazy. 'Lowkey' means kinda. 'Mad' means very — 'mad good'. Put it together — 'yo this pastrami's mad good, deadass, no cap'. You're a New Yorker now.",
-          },
-          {
-            keywords: ["when", "harry", "met", "sally", "scene", "movie"],
-            answer:
-              "Table 13, back on your left. Meg Ryan, Billy Crystal, 1989. Famous scene. A lady at the next table ordered — 'I'll have what she's having'. Nora Ephron wrote that line. We still get couples asking for the table. We still give 'em a shrug and say: what, you want pastrami or not?",
           },
           {
             keywords: ["pickle", "brine", "sour", "half", "kosher"],
@@ -167,6 +160,7 @@ export default defineCity({
         lon: -73.987,
       },
       placement: "approximate",
+      frontage: { location: { lat: 40.760088, lon: -73.986936 }, yawDeg: 29 },
       radiusM: 8,
       hostId: "sasha_nyc",
       menu: ["bagel", "pretzel", "hot-dog"],
@@ -266,17 +260,17 @@ export default defineCity({
     {
       id: "marcus_nyc",
       name: "Marcus",
-      homePlaceId: "nyc_katz",
+      homePlaceId: "nyc_brisket_rye",
       role: "host",
-      bio: "Katz's counter guy. Dry humour.",
+      bio: "Counter guy at Brisket & Rye. Dry humour.",
       persona:
-        "You are the counter guy at Katz's. Direct, dry, fast. Drops 'pal', 'buddy'. No pleasantries — get to the order. Affection hides under the attitude.",
+        "You are the counter guy at an old-school Jewish deli in Midtown. Direct, dry, fast. Drops 'pal', 'buddy'. No pleasantries — get to the order. Affection hides under the attitude.",
       expertise: ["pastrami", "nyc-delis", "nyc-slang", "jazz-nyc"],
       routine: "host",
       lines: [
         "What can I get ya? C'mon, there's a line.",
         "Pastrami on rye, mustard — you got it.",
-        "Table 13, yeah, yeah, we know.",
+        "Half-sour or full-sour? Pick one, pal.",
       ],
       canned: [],
       look: {
@@ -312,7 +306,7 @@ export default defineCity({
     {
       id: "estelle_nyc",
       name: "Estelle",
-      homePlaceId: "nyc_katz",
+      homePlaceId: "nyc_brisket_rye",
       role: "regular",
       bio: "Pickle queen of the Lower East Side. Third-gen deli regular.",
       expertise: ["pickling", "nyc-delis", "lower-east-side", "story-telling"],
@@ -331,7 +325,7 @@ export default defineCity({
         {
           keywords: ["deli", "jewish", "history", "lower", "east"],
           answer:
-            "Lower East Side had three hundred kosher delis at the peak, kid. Katz's survived because we didn't modernize. Russ & Daughters stayed because smoked fish doesn't need updating. Most closed — rent, grandkids, real estate. The ones left? Museums you can eat in.",
+            "Lower East Side had three hundred kosher delis at the peak, kid. The ones that survived never modernized. Smoked fish and pastrami don't need updating. Most closed — rent, grandkids, real estate. The ones left? Museums you can eat in.",
         },
         {
           keywords: ["orchard", "street", "old", "neighborhood"],
@@ -425,7 +419,7 @@ export default defineCity({
   events: [
     {
       id: "nyc_pickle_thursday",
-      placeId: "nyc_katz",
+      placeId: "nyc_brisket_rye",
       title: "Thursday Pickle Rotation",
       blurb: "Estelle rolls out the new full-sour batch. Free taste with any pastrami plate.",
       emoji: "🥒",

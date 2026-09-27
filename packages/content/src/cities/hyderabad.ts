@@ -76,28 +76,25 @@ export default defineCity({
   ],
   places: [
     {
-      id: "hyd_paradise_biryani",
+      id: "hyd_shahi_handi",
       districtId: "hyd-old-city",
       kind: "restaurant",
-      name: "Paradise Biryani House",
+      name: "Shahi Handi",
       emoji: "🍛",
-      blurb: "Dum-cooked mutton biryani, since 1953. The queue is the review.",
-      likeness: "real-business",
+      blurb: "Dum-cooked mutton biryani a street from Charminar. The queue is the review.",
+      likeness: "generic",
       location: {
         lat: 17.361797,
         lon: 78.474114,
       },
-      placement: "relocated",
+      placement: "approximate",
+      frontage: { location: { lat: 17.361797, lon: 78.474114 }, yawDeg: 191 },
       radiusM: 12,
       hostId: "farah_hyd",
       menu: ["biryani", "haleem", "osmania-biscuit"],
       facts: [
         {
           text: "Dum cooking seals the pot with dough so nothing escapes — the meat's juices cook the rice.",
-        },
-        {
-          text: "Paradise started as a tiny café near the Secunderabad railway station in 1953.",
-          note: "History of a real business — verify, or drop if the venue is fictionalised.",
         },
         {
           text: "Hyderabadi biryani uses *kachche gosht* — raw marinated mutton, layered with raw rice.",
@@ -108,7 +105,7 @@ export default defineCity({
         seeds: [
           "What actually makes Hyderabadi biryani different from Lucknow's?",
           "Why is dum cooking so important?",
-          "Tell me about the story of Paradise restaurant",
+          "How did this biryani house start?",
           "Kachche gosht or pakki — which is better?",
         ],
         register: "warm-formal-urdu",
@@ -124,9 +121,9 @@ export default defineCity({
               "Dum means slow-cooking in a sealed pot. We layer the raw mutton, rice, mint, fried onions, saffron milk. Then a rope of dough goes around the lid to trap every bit of steam. Low coal underneath, hot coals on the lid. Thirty to forty minutes. Opening it is the best smell in the world, bolo.",
           },
           {
-            keywords: ["paradise", "story", "history", "started", "begin"],
+            keywords: ["story", "history", "started", "begin", "family"],
             answer:
-              "Paradise started in 1953 as a small café near Secunderabad station. Biryani was a side item. Customers kept coming back for it, so by the '70s the café became a biryani house. Now we have a queue every lunch, every dinner, every Ramzan.",
+              "My dada started with one handi and a borrowed coal stove, a lane from Gulzar Houz. Biryani only on Fridays at first. People kept coming back, so Fridays became every day. Now we have a queue every lunch, every dinner, every Ramzan.",
           },
           {
             keywords: ["kachche", "pakki", "pakka", "which", "better"],
@@ -152,18 +149,19 @@ export default defineCity({
       },
     },
     {
-      id: "hyd_niloufer_cafe",
+      id: "hyd_gulzar_irani_cafe",
       districtId: "hyd-old-city",
       kind: "tea_stall",
-      name: "Niloufer Café",
+      name: "Gulzar Irani Café",
       emoji: "☕",
-      blurb: "Irani chai and Osmania biscuits since forever. Marble tables, loud radios.",
-      likeness: "real-business",
+      blurb: "Irani chai and Osmania biscuits a lane from Gulzar Houz. Marble tables, loud radios.",
+      likeness: "generic",
       location: {
         lat: 17.361634,
         lon: 78.475225,
       },
-      placement: "relocated",
+      placement: "approximate",
+      frontage: { location: { lat: 17.361641, lon: 78.475226 }, yawDeg: 191 },
       radiusM: 8,
       hostId: "asad_hyd",
       menu: ["irani-chai", "osmania-biscuit"],
@@ -203,7 +201,7 @@ export default defineCity({
           {
             keywords: ["iranis", "iran", "history", "came", "migrate"],
             answer:
-              "Iranis arrived in the 1930s from Yazd. They opened little tea-houses across Bombay and Hyderabad. Round marble tables, bentwood chairs, glass jars of biscuits. These cafés became the democracy of the city — rickshaw wallahs and lawyers at the same table.",
+              "Irani families from Yazd came through Bombay from the late 1800s and opened little tea-houses across Bombay and Hyderabad. Round marble tables, bentwood chairs, glass jars of biscuits. These cafés became the democracy of the city — rickshaw wallahs and lawyers at the same table.",
           },
           {
             keywords: ["urdu", "hyderabadi", "teach", "phrase", "words"],
@@ -213,7 +211,7 @@ export default defineCity({
           {
             keywords: ["cricket", "score", "match", "india"],
             answer:
-              "Cricket? Bhai, Charminar ke peeche chai peete kitne ball-by-ball commentary kiya hoga. This week India looks okay, bowling a little loose. Pujara ghar chala gaya kya, sahi keh rahe? Bolo, next match pe shart lagate hain.",
+              "Cricket? Bhai, Charminar ke peeche chai peete kitne ball-by-ball commentary kiya hoga. This week India looks okay, bowling a little loose. Top order phir se ghar jaldi chala gaya, sahi keh rahe? Bolo, next match pe shart lagate hain.",
           },
           {
             keywords: ["weather", "mausam", "today", "hot", "monsoon"],
@@ -267,9 +265,9 @@ export default defineCity({
     {
       id: "farah_hyd",
       name: "Farah",
-      homePlaceId: "hyd_paradise_biryani",
+      homePlaceId: "hyd_shahi_handi",
       role: "host",
-      bio: "Host at Paradise Biryani House. Talks biryani and weather.",
+      bio: "Host at Shahi Handi. Talks biryani and weather.",
       persona:
         "You are Farah, the host of a decades-old Hyderabadi biryani house. Warm, unhurried, a little teasing. Greet in 'Aadab' or 'Salaam'. Use 'bhai', 'sahab'. Talk about dum, mutton, saffron, kachche gosht. When the kitchen is busy, tease the wait.",
       expertise: ["biryani", "dum-cooking", "kachche-gosht", "haleem", "hyderabadi-urdu"],
@@ -290,9 +288,9 @@ export default defineCity({
     {
       id: "asad_hyd",
       name: "Asad",
-      homePlaceId: "hyd_niloufer_cafe",
+      homePlaceId: "hyd_gulzar_irani_cafe",
       role: "host",
-      bio: "Niloufer counter uncle. Cricket and chai.",
+      bio: "Counter uncle at Gulzar Irani Café. Cricket and chai.",
       persona:
         "You're the uncle behind the counter at an Irani café. Quick, teasing Hyderabadi Urdu. Chai-stall banter. Short lines. Reference cricket, traffic, the weather. Close with 'kya bolte ho?' or 'hain?'",
       expertise: ["irani-chai", "hyderabadi-urdu", "cricket", "ramzan-iftar"],
@@ -313,9 +311,9 @@ export default defineCity({
     {
       id: "naseem_hyd",
       name: "Naseem",
-      homePlaceId: "hyd_niloufer_cafe",
+      homePlaceId: "hyd_gulzar_irani_cafe",
       role: "regular",
-      bio: "Chess regular at Niloufer. Beats every uncle on the corner.",
+      bio: "Chess regular at Gulzar Irani Café. Beats every uncle on the corner.",
       expertise: ["chess", "hyderabadi-urdu", "political-banter", "cricket"],
       routine: "chat_stall",
       lines: [
@@ -327,7 +325,7 @@ export default defineCity({
         {
           keywords: ["chess", "shatranj", "play", "game", "move"],
           answer:
-            "Shatranj khel bhai — haan Niloufer mein, har subah. King's Indian Defence mera signature. Ek game pe chai, do game pe biscuit, teen game pe samosa — yeh system hai.",
+            "Shatranj khel bhai — haan yahin café mein, har subah. King's Indian Defence mera signature. Ek game pe chai, do game pe biscuit, teen game pe samosa — yeh system hai.",
         },
         {
           keywords: ["politics", "political", "news", "election", "drama"],
@@ -350,9 +348,9 @@ export default defineCity({
     {
       id: "zara_hyd",
       name: "Zara",
-      homePlaceId: "hyd_paradise_biryani",
+      homePlaceId: "hyd_shahi_handi",
       role: "regular",
-      bio: "Dum-cook at Paradise. Saffron smuggler. Farah's right hand.",
+      bio: "Dum-cook at Shahi Handi. Saffron smuggler. Farah's right hand.",
       expertise: ["dum-cooking", "kachche-gosht", "biryani"],
       routine: "host",
       lines: [
@@ -418,7 +416,7 @@ export default defineCity({
   events: [
     {
       id: "hyd_weekend_biryani",
-      placeId: "hyd_paradise_biryani",
+      placeId: "hyd_shahi_handi",
       title: "Sunday Mutton Special",
       blurb: "Farah opens the bigger handi. Bring patience and a friend.",
       emoji: "🍛",
@@ -430,7 +428,7 @@ export default defineCity({
     },
     {
       id: "hyd_chai_chess",
-      placeId: "hyd_niloufer_cafe",
+      placeId: "hyd_gulzar_irani_cafe",
       title: "Friday Evening Chess",
       blurb: "Naseem brings the board. Asad keeps the chai coming.",
       emoji: "♟️",

@@ -48,6 +48,8 @@ export const PublicDistrict = z.strictObject({
   origin: LatLon,
   radiusM: z.number(),
   spawn: LatLon,
+  /** Direction you face on arrival, degrees clockwise from north. Absent → face the origin. */
+  spawnHeadingDeg: z.number().gte(0).lt(360).optional(),
   /** Compiled real-world geometry asset (roads, buildings). Absent → procedural stand-in. */
   geometry: z.string().optional(),
   attribution: z.array(z.string()),
@@ -82,6 +84,8 @@ export const PublicPlace = z.strictObject({
   emoji: z.string(),
   blurb: z.string(),
   location: LatLon,
+  /** Street-front spot (door) when the district has real map data. */
+  frontage: z.strictObject({ location: LatLon, yawDeg: z.number() }).optional(),
   radiusM: z.number(),
   indoor: z.boolean(),
   hostId: Id.optional(),

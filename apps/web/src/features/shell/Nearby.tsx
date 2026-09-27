@@ -1,6 +1,7 @@
 import { type CityDetail, localFrame, type PublicDistrict } from "@3dworld/contracts";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useReducer } from "react";
+import { approachPoint } from "../../lib/approach.ts";
 import {
   composerDraftAtom,
   playersAtom,
@@ -50,7 +51,7 @@ export const Nearby = ({ detail, district }: { detail: CityDetail; district: Pub
         kind: "place" as const,
         name: `${p.emoji} ${p.name}`,
         detail: p.blurb,
-        ...frame.toLocal(p.location),
+        ...approachPoint(p, frame),
       })),
     ...detail.residents
       .filter((r) => poses.has(r.id))

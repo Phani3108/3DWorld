@@ -13,9 +13,17 @@ import { walkTargetAtom } from "../../state/store.ts";
 import { type CityStyle, styleFor } from "./cityStyle.ts";
 import { createFacadeMaterial } from "./facadeMaterial.ts";
 import { LANDMARK_BY_KEY, LANDMARK_MODELS } from "./Landmarks.tsx";
-import { buildBuildings, buildStreets, footprintFrame, lampsForStreets } from "./osmMeshes.ts";
+import {
+  type AreaKind,
+  buildAreas,
+  buildBuildings,
+  buildStreets,
+  footprintFrame,
+  lampsForStreets,
+} from "./osmMeshes.ts";
 import { lampsAlong, StreetLamps } from "./StreetLamps.tsx";
 import { type Box, generateStandIn, type Strip } from "./standInCity.ts";
+import { Trees } from "./Vegetation.tsx";
 
 const Y = new Vector3(0, 1, 0);
 
@@ -138,6 +146,15 @@ const OsmDistrict = ({
   frame: ReturnType<typeof localFrame>;
 }) => {
   const streets = useMemo(() => buildStreets(geometry), [geometry]);
+  const areas = useMemo(() => buildAreas(geometry), [geometry]);
+  const areaColour: Record<AreaKind, string> = {
+    water: "#3b6b82",
+    land: style.ground,
+    beach: "#dccb9f",
+    park: "#5f7d45",
+    plaza: "#b9ab90",
+    parking: "#5b5b5e",
+  };
   const buildings = useMemo(
     () => buildBuildings(geometry, style.facades, NAMED_COLOURS),
     [geometry, style],
@@ -158,7 +175,17 @@ const OsmDistrict = ({
       <mesh geometry={streets.paving} receiveShadow>
         <meshStandardMaterial color="#b9ab90" roughness={0.9} />
       </mesh>
+      {[...areas].map(([kind, g]) => (
+        <mesh key={kind} geometry={g} receiveShadow>
+          <meshStandardMaterial
+            color={areaColour[kind]}
+            roughness={kind === "water" ? 0.12 : 0.95}
+            metalness={kind === "water" ? 0.05 : 0}
+          />
+        </mesh>
+      ))}
       <mesh geometry={buildings} material={facade} castShadow receiveShadow />
+      <Trees points={geometry.trees} />
       {landmarks.map((b) => {
         const Model = LANDMARK_BY_KEY[b.landmark!]!;
         const f = footprintFrame(b.ring);

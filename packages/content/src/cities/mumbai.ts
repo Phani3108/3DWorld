@@ -67,40 +67,41 @@ export default defineCity({
       },
       radiusM: 1000,
       spawn: {
-        lat: 18.944,
-        lon: 72.824,
+        lat: 18.94385,
+        lon: 72.82255,
       },
+      // Along the Queen's Necklace toward Chowpatty, the sea on your left.
+      spawnHeadingDeg: 329,
+      geometry: "mum-marine-drive",
       attribution: ["© OpenStreetMap contributors (ODbL)"],
     },
   ],
   places: [
     {
-      id: "mum_britannia",
+      id: "mum_zereshk_cafe",
       districtId: "mum-marine-drive",
       kind: "restaurant",
-      name: "Britannia & Co.",
+      name: "Zereshk Café",
       emoji: "🍮",
-      blurb: "Iranian-Parsi restaurant, 1923. Berry pulao and caramel custard. The owner chats.",
-      likeness: "real-business",
+      blurb: "Irani café off Marine Drive. Berry pulao and caramel custard. The owner chats.",
+      likeness: "generic",
       location: {
         lat: 18.946,
         lon: 72.825,
       },
-      placement: "relocated",
+      placement: "approximate",
+      frontage: { location: { lat: 18.946021, lon: 72.825042 }, yawDeg: 63 },
       radiusM: 10,
       hostId: "priya_mum",
       menu: ["berry-pulao"],
       facts: [
         {
-          text: "Founded in 1923 by an Irani family and still family-run.",
+          text: "Berry pulao gets its tang from zereshk, a small sour barberry grown mostly in eastern Iran.",
           status: "corrected",
-          note: "Real business: 'Parsi from Yazd' conflated Parsi and Irani. Verify, or fictionalise the venue.",
+          note: "Legacy text said the barberries come from Yazd.",
         },
         {
-          text: "Berry pulao uses zereshk — a sour Iranian barberry imported from Yazd.",
-        },
-        {
-          text: "The original Britannia signage still has the royal-era lion emblem.",
+          text: "Bombay's Irani cafés were opened by Zoroastrian families from Iran, many from Yazd.",
         },
       ],
       conversation: {
@@ -119,9 +120,9 @@ export default defineCity({
               "Dikra, Parsis came to India from Persia about 1200 years ago, fleeing religious persecution. The story is — we asked the king for refuge, he sent a full glass of milk (we are full). We added sugar and sent it back (we will sweeten). He let us stay. Bombay became our home in the 1800s.",
           },
           {
-            keywords: ["family", "restaurant", "how", "started", "britannia"],
+            keywords: ["family", "restaurant", "cafe", "how", "started"],
             answer:
-              "My grandfather Rashid Kohinoor came from Yazd in 1923. Opened a small café for the dock workers at Ballard Estate. Berry pulao was his wife's recipe. Hundred years later we still use the same zereshk, imported from the same valley. Three generations now.",
+              "My grandfather came from Yazd in the 1930s. Opened a small café for the dock workers. Berry pulao was his wife's recipe. Ninety years later we still cook it her way, same zereshk, same patience. Three generations now.",
           },
           {
             keywords: ["bombay", "mumbai", "maximum", "city", "why"],
@@ -164,6 +165,7 @@ export default defineCity({
         lon: 72.815,
       },
       placement: "approximate",
+      frontage: { location: { lat: 18.954511, lon: 72.81501 }, yawDeg: 221 },
       radiusM: 8,
       hostId: "rohan_mum",
       menu: ["vada-pav", "cutting-chai", "bhel-puri"],
@@ -235,8 +237,8 @@ export default defineCity({
       blurb: "Queen's Necklace at dusk. Joggers, lovers, bhel vendors, the Arabian Sea.",
       likeness: "public-landmark",
       location: {
-        lat: 18.9432,
-        lon: 72.8235,
+        lat: 18.943908,
+        lon: 72.822484,
       },
       placement: "approximate",
       radiusM: 10,
@@ -263,11 +265,11 @@ export default defineCity({
     {
       id: "priya_mum",
       name: "Priya",
-      homePlaceId: "mum_britannia",
+      homePlaceId: "mum_zereshk_cafe",
       role: "host",
-      bio: "Britannia's fourth-gen owner. Full of stories.",
+      bio: "Third-generation owner of Zereshk Café. Full of stories.",
       persona:
-        "You are the elderly Parsi owner of Britannia. Gracious, nostalgic, story-loving. Short affectionate exclamations in Gujarati-tinged English. 'Aavjo dikra', 'tell me darling', 'berry pulao, best thing'. Slow cadence.",
+        "You are the Parsi owner of an old Irani café near Marine Drive. Gracious, nostalgic, story-loving. Short affectionate exclamations in Gujarati-tinged English. 'Aavjo dikra', 'tell me darling', 'berry pulao, best thing'. Slow cadence.",
       expertise: ["parsi-cuisine", "parsi-history", "bombay-lore", "story-telling"],
       routine: "host",
       lines: [
@@ -309,13 +311,13 @@ export default defineCity({
     {
       id: "dadi_mum",
       name: "Dadi",
-      homePlaceId: "mum_britannia",
+      homePlaceId: "mum_zereshk_cafe",
       role: "regular",
-      bio: "Parsi matriarch. Fourth-gen berry pulao maker. Priya's elder aunt.",
+      bio: "Parsi matriarch. Berry pulao keeper. Priya's elder aunt.",
       expertise: ["parsi-cuisine", "parsi-history", "bombay-lore", "story-telling"],
       routine: "host",
       lines: [
-        "Dikra — zereshk from Yazd, not Iran-Iran. Dadaji knew.",
+        "Dikra — zereshk must be deep red, never brown. Dadaji knew.",
         "Bombay was quieter in the 60s. You had time.",
         "Caramel custard — don't burn. Colour of mahogany.",
       ],
@@ -323,12 +325,12 @@ export default defineCity({
         {
           keywords: ["berry", "pulao", "zereshk", "recipe"],
           answer:
-            "Dikra — zereshk comes from Yazd, not 'Iran' generically. We've had the same supplier since 1961. Soak zereshk for ten minutes. Fry in ghee with sugar for three. Scatter on basmati-saffron rice with slivered almond. My grandmother would slap me if I got the ratio wrong.",
+            "Dikra — zereshk must be deep red, never brown. We've had the same supplier since 1961. Soak zereshk for ten minutes. Fry in ghee with sugar for three. Scatter on basmati-saffron rice with slivered almond. My grandmother would slap me if I got the ratio wrong.",
         },
         {
           keywords: ["parsi", "history", "zoroastrian", "community"],
           answer:
-            "Dikra, Parsis came to Gujarat first, then Bombay when the dockyards opened. My great-grandfather landed at Ballard Estate. Three generations later, we own a restaurant that's older than the country. Think about that.",
+            "Dikra, Parsis came to Gujarat first, then Bombay when the dockyards opened. My grandfather landed at the Bombay docks. Three generations later, we run a café older than the country. Think about that.",
         },
         {
           keywords: ["bombay", "old", "changed", "then"],

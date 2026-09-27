@@ -161,6 +161,44 @@ export const buildBuildings = (
   return b.build();
 };
 
+export type AreaKind = DistrictGeometry["areas"][number]["kind"];
+
+/** Draw order: sea under islands, parks and plazas above bare ground, all below kerbs. */
+export const AREA_HEIGHT: Record<AreaKind, number> = {
+  water: 0.05,
+  land: 0.06,
+  beach: 0.07,
+  park: 0.08,
+  plaza: 0.09,
+  parking: 0.1,
+};
+
+/** Flat, triangulated polygons per area kind (one geometry each). */
+export const buildAreas = (g: DistrictGeometry) => {
+  const builders = new Map<AreaKind, Builder>();
+  for (const area of g.areas) {
+    const n = area.ring.length / 2;
+    if (n < 3) continue;
+    const y = AREA_HEIGHT[area.kind];
+    const contour = Array.from(
+      { length: n },
+      (_, i) => new Vector2(area.ring[i * 2]!, area.ring[i * 2 + 1]!),
+    );
+    const faces = ShapeUtils.triangulateShape(contour, []);
+    const b = builders.get(area.kind) ?? new Builder();
+    builders.set(area.kind, b);
+    for (const [a, c, d] of faces) {
+      const pa = contour[a!]!;
+      const pc = contour[c!]!;
+      const pd = contour[d!]!;
+      const cross = (pc.x - pa.x) * (pd.y - pa.y) - (pc.y - pa.y) * (pd.x - pa.x);
+      const [p1, p2] = cross > 0 ? [pd, pc] : [pc, pd];
+      b.tri([pa.x, y, pa.y], [p1.x, y, p1.y], [p2.x, y, p2.y], UP);
+    }
+  }
+  return new Map([...builders].map(([k, b]) => [k, b.build()] as const));
+};
+
 /** Centre and orientation of a footprint (for placing hand-built landmarks). */
 export const footprintFrame = (ring: number[]) => {
   const n = ring.length / 2;
