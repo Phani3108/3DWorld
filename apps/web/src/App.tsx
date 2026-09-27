@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Onboarding } from "./features/onboarding/Onboarding.tsx";
 import { WorldShell } from "./features/shell/WorldShell.tsx";
 import { ApiError, api } from "./lib/api.ts";
+import { prefetchScene } from "./lib/loadScene.ts";
 import { sessionAtom } from "./state/store.ts";
 
 export const App = () => {
@@ -15,6 +16,9 @@ export const App = () => {
     enabled: !!session,
     retry: false,
   });
+
+  // The 3D scene is ~1.3 MB; fetch it while the world list and onboarding load.
+  useEffect(prefetchScene, []);
 
   // A stored guest the server no longer knows (e.g. a fresh dev database) → start over.
   useEffect(() => {
