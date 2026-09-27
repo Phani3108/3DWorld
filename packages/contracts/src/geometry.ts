@@ -42,7 +42,10 @@ export const DistrictGeometry = z.strictObject({
     z.strictObject({ kind: RoadKind, width: z.number(), pts: Flat, name: z.string().optional() }),
   ),
   areas: z.array(
-    z.strictObject({ kind: z.enum(["plaza", "park", "water", "parking"]), ring: Flat }),
+    z.strictObject({
+      kind: z.enum(["plaza", "park", "water", "parking", "beach", "land"]),
+      ring: Flat,
+    }),
   ),
   buildings: z.array(
     z.strictObject({

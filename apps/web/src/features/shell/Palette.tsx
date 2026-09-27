@@ -7,6 +7,7 @@ import {
 import { Command } from "cmdk";
 import { useAtom, useSetAtom } from "jotai";
 import { useEffect } from "react";
+import { approachPoint } from "../../lib/approach.ts";
 import {
   composerDraftAtom,
   paletteOpenAtom,
@@ -90,7 +91,7 @@ export const Palette = ({
                 value={`walk ${p.name}`}
                 className={item}
                 onSelect={() => {
-                  setWalk({ ...frame.toLocal(p.location), label: p.name });
+                  setWalk({ ...approachPoint(p, frame), label: p.name });
                   close();
                 }}
               >
