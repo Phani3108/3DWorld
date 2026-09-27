@@ -119,6 +119,7 @@ const publicDistrict = (d: InCity<District>): PublicDistrict => ({
   origin: d.origin,
   radiusM: d.radiusM,
   spawn: d.spawn,
+  ...(d.spawnHeadingDeg !== undefined ? { spawnHeadingDeg: d.spawnHeadingDeg } : {}),
   ...(d.geometry ? { geometry: d.geometry } : {}),
   attribution: d.attribution,
 });
@@ -155,6 +156,7 @@ export const publicPlace = (p: InCity<Place>): PublicPlace => ({
   emoji: p.emoji,
   blurb: p.blurb,
   location: p.location,
+  ...(p.frontage ? { frontage: p.frontage } : {}),
   radiusM: p.radiusM,
   indoor: p.ambience.indoor,
   ...(p.hostId ? { hostId: p.hostId } : {}),

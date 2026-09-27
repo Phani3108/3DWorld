@@ -67,35 +67,35 @@ export default defineCity({
       },
       radiusM: 900,
       spawn: {
-        lat: 12.9757,
-        lon: 77.5985,
+        lat: 12.975648,
+        lon: 77.59843,
       },
+      spawnHeadingDeg: 143,
+      geometry: "blr-central",
       attribution: ["© OpenStreetMap contributors (ODbL)"],
     },
   ],
   places: [
     {
-      id: "blr_mtr",
+      id: "blr_namma_tiffin_mane",
       districtId: "blr-central",
       kind: "restaurant",
-      name: "MTR (Mavalli Tiffin Room)",
+      name: "Namma Tiffin Mane",
       emoji: "🥞",
-      blurb: "Since 1924. Masala dosa, rava idli (they invented it), filter coffee.",
-      likeness: "real-business",
+      blurb: "Old-school tiffin room. Masala dosa, rava idli, filter coffee in steel tumblers.",
+      likeness: "generic",
       location: {
         lat: 12.9745,
         lon: 77.6,
       },
-      placement: "relocated",
+      placement: "approximate",
+      frontage: { location: { lat: 12.974499, lon: 77.600013 }, yawDeg: 96 },
       radiusM: 12,
       hostId: "arjun_blr",
       menu: ["masala-dosa", "filter-coffee", "bisi-bele-bath"],
       facts: [
         {
-          text: "MTR invented rava idli during WWII when rice was rationed.",
-        },
-        {
-          text: "The 'Mavalli' in the name refers to the Bengaluru locality of its first shop.",
+          text: "Rava idli is popularly said to have been born in Bengaluru when rice was scarce during World War II.",
         },
         {
           text: "Filter coffee here is served in a dabarah-tumbler so you can pour-mix for the perfect temperature.",
@@ -119,7 +119,7 @@ export default defineCity({
           {
             keywords: ["rava", "idli", "invent", "history", "who"],
             answer:
-              "Rava idli was born here, saar — during World War Two. Rice was rationed, but semolina was available. We tried steaming a semolina-buttermilk batter with cashews and mustard. Guests loved it. Seventy years later, every tiffin room makes it. Small innovation, big legacy.",
+              "Rava idli was born in this city, saar — during World War Two, the story goes. Rice was scarce, but semolina was available. Cooks tried steaming a semolina-buttermilk batter with cashews and mustard. Guests loved it. Seventy years later, every tiffin room makes it. Small innovation, big legacy.",
           },
           {
             keywords: ["dosa", "chutney", "coconut", "pair", "why"],
@@ -162,6 +162,7 @@ export default defineCity({
         lon: 77.6045,
       },
       placement: "approximate",
+      frontage: { location: { lat: 12.975177, lon: 77.604494 }, yawDeg: 195 },
       radiusM: 10,
       hostId: "divya_blr",
       menu: ["mysore-pak"],
@@ -263,17 +264,17 @@ export default defineCity({
     {
       id: "arjun_blr",
       name: "Arjun",
-      homePlaceId: "blr_mtr",
+      homePlaceId: "blr_namma_tiffin_mane",
       role: "host",
-      bio: "MTR floor captain. Filter coffee evangelist.",
+      bio: "Floor captain at Namma Tiffin Mane. Filter coffee evangelist.",
       persona:
-        "You are a traditional gracious host at MTR. Mix Kannada and English politely. 'Dosa beku saar?' 'Swalpa tuppa haaktheeni.' Teach the filter-coffee ritual on request. Quiet pride in tradition.",
+        "You are a traditional, gracious host at an old Bengaluru tiffin room. Mix Kannada and English politely. 'Dosa beku saar?' 'Swalpa tuppa haaktheeni.' Teach the filter-coffee ritual on request. Quiet pride in tradition.",
       expertise: ["filter-coffee", "south-indian", "kannada", "story-telling"],
       routine: "host",
       lines: [
         "Namaskara! Dosa ready in five.",
         "Saar — filter coffee properly pour maadi.",
-        "Rava idli was born here, dikra.",
+        "Rava idli was born in this city, saar.",
       ],
       canned: [],
       look: {
@@ -295,8 +296,8 @@ export default defineCity({
       routine: "pub",
       lines: [
         "Hey maga, surviving the traffic?",
-        "Toit or Arbor — take a pick.",
-        "Thermal and a Quarter playing Friday, come.",
+        "Wheat beer or IPA — take a pick.",
+        "Local band playing Friday, come.",
       ],
       canned: [],
       look: {
@@ -309,9 +310,9 @@ export default defineCity({
     {
       id: "ravi_blr",
       name: "Ravi",
-      homePlaceId: "blr_mtr",
+      homePlaceId: "blr_namma_tiffin_mane",
       role: "regular",
-      bio: "Morning regular at MTR. Filter coffee decanter, tiffin scholar.",
+      bio: "Morning regular at Namma Tiffin Mane. Filter coffee decanter, tiffin scholar.",
       expertise: ["filter-coffee", "south-indian", "kannada", "story-telling"],
       routine: "chat_stall",
       lines: [
@@ -323,12 +324,12 @@ export default defineCity({
         {
           keywords: ["filter", "coffee", "decoction", "ratio"],
           answer:
-            "Decoction ratio is 1:4 — one spoon coffee powder, four spoons water. Percolator fifteen minutes. Mix with milk 1:1 at serving. Saar — Chikmagalur beans, dark roast, chicory 20%. That's the MTR way.",
+            "Decoction ratio is 1:4 — one spoon coffee powder, four spoons water. Percolator fifteen minutes. Mix with milk 1:1 at serving. Saar — Chikmagalur beans, dark roast, chicory 20%. That's the old tiffin-room way.",
         },
         {
           keywords: ["tiffin", "breakfast", "south", "dosa", "idli"],
           answer:
-            "Tiffin — that's the morning meal in Karnataka. Dosa, idli, vada, uppittu, khara bath — all tiffin. Not snack. Not lunch. Tiffin. Rava idli was born in this very building, saar. War time, rice rationed.",
+            "Tiffin — that's the morning meal in Karnataka. Dosa, idli, vada, uppittu, khara bath — all tiffin. Not snack. Not lunch. Tiffin. Rava idli was born in this city, they say. War time, rice scarce.",
         },
         {
           keywords: ["kannada", "teach", "phrase", "bengaluru"],
@@ -426,7 +427,7 @@ export default defineCity({
     },
     {
       id: "blr_filter_morning",
-      placeId: "blr_mtr",
+      placeId: "blr_namma_tiffin_mane",
       title: "Saturday Filter-Coffee Tasting",
       blurb: "Ravi runs three decoctions side-by-side. Free upgrade if you guess the bean origin.",
       emoji: "☕",

@@ -26,3 +26,4 @@ apps/web/playwright-report/
 *.tsbuildinfo
 .env
 .env.local
+apps/web/.shot.mjs

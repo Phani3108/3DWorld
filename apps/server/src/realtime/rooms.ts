@@ -58,13 +58,20 @@ export const createRooms = (opts: { world: World; capacity: number; random?: () 
       if (!home || home.districtId !== d.id) continue;
       const i = perPlace.get(home.id) ?? 0;
       perPlace.set(home.id, i + 1);
-      const c = frame.toLocal(home.location);
+      // With real map data, stand on the pavement outside the door, facing the street.
+      let c = frame.toLocal(home.location);
+      let facing: number | null = null;
+      if (home.frontage) {
+        facing = (home.frontage.yawDeg * Math.PI) / 180;
+        const door = frame.toLocal(home.frontage.location);
+        c = { x: door.x + Math.sin(facing) * 4, z: door.z - Math.cos(facing) * 4 };
+      }
       // Hosts stand at the door; regulars fan out around them.
       const angle = i === 0 ? 0 : (i * 2 * Math.PI) / 5;
       const dist = i === 0 ? 0 : 2.5;
       const x = c.x + Math.sin(angle) * dist;
       const z = c.z + Math.cos(angle) * dist;
-      const heading = Math.atan2(spawn.x - x, -(spawn.z - z));
+      const heading = facing ?? Math.atan2(spawn.x - x, -(spawn.z - z));
       list.push({ id: r.id, pose: { x, z, heading, anim: "idle" } });
     }
     residentsByDistrict.set(d.id, list);
@@ -136,8 +143,11 @@ export const createRooms = (opts: { world: World; capacity: number; random?: () 
       const district = world.districts.get(districtId)!;
       const spawn = localFrame(district.origin).toLocal(district.spawn);
       const jitter = () => (random() - 0.5) * 4;
-      // Arrive facing the heart of the district (its origin is the main landmark).
-      const heading = Math.atan2(-spawn.x, spawn.z);
+      // Arrive facing the configured view, else the heart of the district (its origin).
+      const heading =
+        district.spawnHeadingDeg !== undefined
+          ? (district.spawnHeadingDeg * Math.PI) / 180
+          : Math.atan2(-spawn.x, spawn.z);
       room.members.set(info.id, {
         ...info,
         socketId,
