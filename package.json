@@ -1,0 +1,36 @@
+{
+  "name": "3dworld-monorepo",
+  "private": true,
+  "type": "module",
+  "description": "3D World — Living Cities. New TypeScript stack (apps/*, packages/*) alongside the legacy client/ and server/.",
+  "license": "MIT",
+  "workspaces": [
+    "packages/contracts",
+    "packages/content",
+    "apps/server",
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.ts",
+    "dev:server": "npm run dev -w @3dworld/server",
+    "dev:web": "npm run dev -w @3dworld/web",
+    "build": "npm run build -w @3dworld/web",
+    "start": "npm run start -w @3dworld/server",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
+    "content:validate": "node packages/content/scripts/validate.ts",
+    "check": "npm run lint && npm run typecheck && npm run content:validate && npm test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@types/node": "^22.18.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.2"
+  }
+}

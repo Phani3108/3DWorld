@@ -11,6 +11,31 @@ Walk into Paradise Biryani House in Hyderabad and Farah will tell you why dum co
 
 ---
 
+## 🏗️ New stack — Living Cities (in progress)
+
+A TypeScript re-platform is growing alongside the legacy `client/` and `server/` (which still run the
+live demo). It walks real streets: Hyderabad's Old City is built from OpenStreetMap, lit by the real
+sun for the city's local time.
+
+```
+apps/web            React 19 · React Three Fiber 9 · Tailwind 4 · Vite 8
+apps/server         Node 22 (runs .ts natively) · Hono · Socket.IO · Drizzle · PGlite / Postgres
+packages/contracts  zod schemas for every REST route, socket event and map file
+packages/content    typed cities, districts, places, residents + validator
+data/osm            OpenStreetMap extracts (ODbL) → compiled to apps/web/public/geo
+```
+
+```bash
+npm install                     # once, at the repo root (Node ≥ 22.18)
+cp apps/server/.env.example apps/server/.env
+npm run dev                     # server on :4000, web on :5180
+npm run check                   # lint, types, content validation, tests
+```
+
+Add `?at=2026-09-26T11:30:00Z` to the web URL to pin the sun to a moment (e.g. golden hour).
+
+---
+
 ## ✨ What's inside
 
 ### The World

@@ -1,0 +1,20 @@
+{
+  "name": "@3dworld/content",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Typed world content (cities, districts, places, residents, food, languages) + validator + geo helpers.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./geo": "./src/geo.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "validate": "node scripts/validate.ts"
+  },
+  "dependencies": {
+    "@3dworld/contracts": "file:../contracts",
+    "zod": "4.6.5"
+  }
+}
