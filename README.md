@@ -365,6 +365,315 @@ cd server && npm test
 
 ---
 
+## Production Readiness
+
+Review date: 2026-10-26. Audited commit: `054fa9b` on `main`. Method: [project-completion-gate](.claude/skills/project-completion-gate/SKILL.md). The repo is the only source; "Not found in repo" means a search of the tracked files found nothing.
+
+### Verdict: Not ready
+
+- Blockers, in order:
+  1. Human in the loop is Missing: no moderation, report or kill-switch path.
+  2. Guardrails are Partial: no validation of model output before it is shown to a room.
+  3. Security is Partial: no dependency or secret scan in CI.
+  4. No AI evals gate a release.
+- Gate rule: Ready needs no Missing on Guardrails, Security or Human in the loop, and evals that gate the release. Human in the loop is Missing, and no eval gates a release.
+
+### Scorecard
+
+| Dimension | Status |
+|---|---|
+| 1. Guardrails | Partial |
+| 2. Evals | Partial |
+| 3. Observability | Partial |
+| 4. Security | Partial |
+| 5. Human in the loop | Missing |
+| 6. Architecture diagrams | Present (added in this section, derived from code) |
+
+### 1. Guardrails: Partial
+
+Present
+- JSON body cap, default 1.5 MB, `MAX_JSON_BODY_BYTES`: `server/httpRoutes.js` (readBody, top of handler).
+- Question capped at 500 chars, tags stripped: `server/httpRoutes.js` (`/api/v1/ask`), `server/llm/llmService.js` (`MAX_QUESTION_CHARS`).
+- Per-IP HTTP limit 120/min, bot register 5/h, key rotate 3/h, chat 15/10 s, transfer 8/10 s: `server/index.js` (rate limiters), `server/rateLimiter.js`.
+- LLM cost ceilings: daily USD budget, per-user daily turns, 6/min per user, 2 in flight per resident: `server/llm/costGuards.js`.
+- Loop and retry limits: 45 s timeout, `maxRetries: 1`, one feature-downgrade retry, `max_tokens` 4096: `server/llm/providerCatalog.js`.
+- No tools are passed to the model, so there is no tool scope to widen: `buildClaudeRequest` in `server/llm/providerCatalog.js`.
+- Refusal, error and budget-exhausted cases fall back to canned answers, then an in-character redirect: `server/httpRoutes.js` (`/api/v1/ask`), `server/cannedAnswerService.js`.
+- Persona rules treat visitor text as untrusted and keep instructions private: `WORLD_BIBLE` in `server/llm/promptBuilder.js`.
+
+Gaps
+- Model output is not validated. `answerAsResident` returns the text as is, and the ask route emits it to the room as `playerChatMessage`. Length, PII and policy limits rest on the prompt only: `server/llm/llmService.js`, `server/llm/providerCatalog.js` (`textOf`), `server/httpRoutes.js`.
+  - Can go wrong: an off-persona or unsafe reply reaches every player in the room and is stored as a learned fact.
+- Visitor name and nearby player names are placed into a `system`-role message. Sanitising is tag-stripping and a 40-char cap only: `buildLiveContext` in `server/llm/promptBuilder.js`, `cleanName` in `server/llm/llmService.js`.
+  - Can go wrong: a crafted display name carries instructions with higher authority than the user turn.
+- Cost-guard state is in memory; a restart resets it: header of `server/llm/costGuards.js`.
+  - Can go wrong: repeated restarts allow spend above `LLM_DAILY_BUDGET_USD`.
+- Webhook URLs are checked for SSRF at registration. `sendWebhook` calls `fetch` with default redirect handling and no re-check: `server/botRegistry.js`, `server/rateLimiter.js` (`isSafeWebhookUrl`).
+  - Can go wrong: a registered host that later redirects or re-resolves to an internal address is still called.
+
+Action: validate model output (length, URL and PII pattern check, fallback to canned on fail) in `answerAsResident`.
+
+### 2. Evals: Partial
+
+Present
+- 18 Vitest files, run in CI on push and pull request: `server/__tests__/`, `.github/workflows/ci.yml`.
+- Claude request shape tested against a mocked SDK: `server/__tests__/claudeProvider.test.js`, `server/__tests__/llmAndCanned.test.js`.
+- Canned-answer matching, cost guards, rate limiter, quests, reputation and others have unit tests: `server/__tests__/`.
+
+Gaps
+- Not found in repo: a stored question set with expected answers for resident replies, and any accuracy, persona or safety metric.
+- Not found in repo: an LLM judge, so no calibration is needed yet.
+- Not found in repo: a pass threshold tied to release. CI runs tests; a branch-protection rule requiring them is not in the repo.
+- Not found in repo: tests for `server/httpRoutes.js` and `server/socketHandlers.js` (the largest files), or for the client (`client/package.json` has no test script).
+- `tests/manual/` scripts are not run by CI.
+  - Can go wrong: a prompt or model change degrades answers and nothing fails; auth and economy routes can regress unnoticed.
+
+Action: add a fixed question set per resident with expected checks, run it against the stub and a recorded Claude response in CI, fail below a threshold.
+
+### 3. Observability: Partial
+
+Present
+- Spend and guard counters at `GET /api/v1/llm/status`: `server/httpRoutes.js`, `guardStats` in `server/llm/costGuards.js`.
+- Liveness and room counts at `GET /health`: `server/httpRoutes.js`.
+- Q&A archive (cap 2,000) with user, resident, venue and channel: `server/conversationLog.js`.
+- Per-answer cost is computed from token usage: `server/llm/llmService.js`, `server/llm/pricing.js`.
+
+Gaps
+- Logs are `console.*` text with no request or run ID: `server/index.js`, `server/httpRoutes.js`.
+- Not found in repo: tracing, a metrics exporter, latency metrics, alerts on failure or cost.
+- `costUsd` is computed per answer in `server/llm/llmService.js`; no log line records it.
+- Not found in repo: an audit trail for coin transfers, purchases, key rotation or bot registration.
+  - Can go wrong: a production failure or a spend spike is found by users first; a disputed transfer cannot be reconstructed.
+
+Action: add a request ID and JSON log lines in the HTTP handler and socket events; log `costUsd`, channel and resident per ask.
+
+### 4. Security: Partial
+
+Present
+- Secrets: `.env` ignored in `.gitignore` and `.dockerignore`; `.env.example` has placeholders. A manual gitleaks run is recorded in `OPEN_SOURCE_CHECKLIST.md`.
+- Session tokens stored as SHA-256; mutating user routes call `verifySession`: `server/userStore.js`, `server/httpRoutes.js`.
+- Bot API keys stored as SHA-256 hashes: `server/httpRoutes.js` (`/api/v1/bots/register`), `server/rateLimiter.js` (`hashApiKey`).
+- Production defaults `OPEN_ACCESS=0`, with startup warnings if it is on: `server/index.js`, `render.yaml`.
+- Headers: `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, HSTS on HTTPS: `getSecurityHeaders` in `server/httpRoutes.js`.
+- CORS allow-list for HTTP and Socket.IO: `server/index.js`, `server/httpRoutes.js` (`getCorsOrigin`).
+- DB TLS strict in production: `server/db.js`.
+- Reporting and secret handling: see [SECURITY.md](SECURITY.md).
+
+Gaps
+- Not found in repo: dependency scan, container scan or secret scan in CI. `npm audit` and gitleaks were run by hand on 2026-02-25 (`OPEN_SOURCE_CHECKLIST.md`). `.github/` has only `workflows/ci.yml`.
+- Not found in repo: Dependabot or CodeQL config.
+- `Dockerfile` has no `USER` line (the container runs as root) and no `HEALTHCHECK`.
+- `vercel.json` sets only a cache header; a CSP or other security header for the client is Not found in repo.
+- Bot registration is open and returns `status: "verified"` at once: `server/httpRoutes.js`. Rate limit is 5/h per IP.
+- With `OPEN_ACCESS=1`, every request is authenticated as a fixed local identity with a key hard-coded in source (`OPEN_ACCESS_LOCAL_RAW_KEY`): `server/httpRoutes.js`.
+- `/health` lists room names and player counts without auth: `server/httpRoutes.js`.
+- Data retention and deletion: Not found in repo. `clearMemory` exists in `server/llm/memoryStore.js` but no route calls it. No user-deletion path found.
+- `SECURITY.md` says fixes go to `master`; the default branch is `main`.
+- `render.yaml` defines no disk. State is flat JSON files unless `DATABASE_URL` is set.
+  - Can go wrong: a vulnerable dependency ships unseen; a leaked secret is not caught on push; a redeploy may drop user and coin data; an unauthorised caller can bot-register at scale.
+
+Action: add `npm audit --audit-level=high` and gitleaks to `.github/workflows/ci.yml`; add `USER node` to `Dockerfile`.
+
+### 5. Human in the loop: Missing
+
+- Not found in repo: an approval step before any action. Coin transfers (`server/socketHandlers.js`, `coins:transfer` handler, guarded by `limitTransfer`) and purchases (`server/httpRoutes.js`, `/api/v1/food/buy`) run directly.
+- Model output is posted straight to the room: `server/httpRoutes.js` (`/api/v1/ask`).
+- Not found in repo: report, mute, block, moderation queue or reviewer record. A search of `server/httpRoutes.js` and `server/socketHandlers.js` for these terms found none.
+- Not found in repo: an admin endpoint, kill switch or runtime toggle. The only ways to stop Claude answers are to unset `ANTHROPIC_API_KEY` or set `LLM_PROVIDER=stub`, then restart (`server/llm/providerCatalog.js`).
+- `agents.status` allows `suspended` (`server/db.js`), but no code sets it.
+- What exists instead of escalation: guard trips and refusals fall back to canned answers (`server/httpRoutes.js`). Nothing is flagged to a person.
+  - Can go wrong: abusive or unsafe text in a public room, or a runaway bot, has no operator control short of a redeploy.
+
+Action: add an operator-key-protected endpoint that sets a runtime LLM off switch and suspends a bot; add a `report` socket event that writes to a reviewable log.
+
+### 6. Architecture diagrams
+
+Derived from the code at the audited commit. Not drawn, because the code does not support them: swimlane, waterfall, and a bot-status state machine (only `verified` is ever set).
+
+**C4 L1 - Context**
+
+```mermaid
+flowchart LR
+  player["Player - browser"]
+  bot["External bot or agent"]
+  sys["3D World - client and server"]
+  claude["Anthropic API - optional"]
+  pg[("Postgres - optional")]
+  hook["Bot webhook endpoint"]
+  player -->|"WebSocket and HTTPS"| sys
+  bot -->|"REST and Socket.IO"| sys
+  sys -->|"resident answers"| claude
+  sys -->|"rooms, users, agents"| pg
+  sys -->|"signed POST"| hook
+```
+
+**C4 L2 - Containers**
+
+```mermaid
+flowchart LR
+  subgraph vercel["Vercel"]
+    client["client: Vite, React, React Three Fiber"]
+  end
+  subgraph host["Render, or Docker on Fly and Railway"]
+    server["server: Node HTTP and Socket.IO, index.js"]
+    files[("JSON files: users, conversationLog, llmMemory, reputation, bonds")]
+  end
+  cli["packages/3dworld: skill installer CLI"]
+  pg[("Postgres - optional")]
+  claude["Anthropic API"]
+  client -->|"REST /api/v1 and Socket.IO"| server
+  cli -->|"register and fetch skill.md"| server
+  server --> files
+  server -.->|"if DATABASE_URL"| pg
+  server -.->|"if ANTHROPIC_API_KEY"| claude
+```
+
+**C4 L3 - Components, server**
+
+```mermaid
+flowchart TB
+  idx["index.js: bootstrap, rate limiters, CORS origins"]
+  http["httpRoutes.js: REST, auth, ask"]
+  sock["socketHandlers.js: rooms, chat, coins"]
+  llm["llm/llmService.js"]
+  guards["llm/costGuards.js"]
+  prov["llm/providerCatalog.js: anthropic or stub"]
+  prompt["llm/promptBuilder.js"]
+  mem["llm/memoryStore.js"]
+  canned["cannedAnswerService.js"]
+  users["userStore.js"]
+  reg["botRegistry.js"]
+  rc["roomCache.js"]
+  db["db.js"]
+  conv["conversationLog.js"]
+  rate["rateLimiter.js: limiter, SSRF check"]
+  idx --> http
+  idx --> sock
+  http --> llm
+  http --> canned
+  http --> users
+  http --> reg
+  http --> conv
+  http --> rate
+  sock --> users
+  sock --> rc
+  llm --> guards
+  llm --> prov
+  llm --> prompt
+  llm --> mem
+  rc --> db
+  users --> db
+  reg --> db
+```
+
+**Data flow - Ask-an-Agent**
+
+```mermaid
+flowchart LR
+  q["Question, max 500 chars"] --> auth["verifySession"]
+  auth --> res["find resident"]
+  res --> g{"canSpend and provider not stub"}
+  g -->|yes| c["Claude call"]
+  g -->|no| m["canned match"]
+  c -->|ok| out["playerChatMessage to room"]
+  c -->|"fail or refusal"| m
+  m -->|hit| out
+  m -->|miss| r["in-character redirect"] --> out
+  out --> store[("learnedFacts, conversationLog, llmMemory")]
+```
+
+**Sequence - Ask-an-Agent**
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant H as httpRoutes
+  participant U as userStore
+  participant L as llmService
+  participant G as costGuards
+  participant A as Anthropic
+  participant R as Room
+  C->>H: POST /api/v1/ask with X-Session-Token
+  H->>U: validateSessionToken
+  U-->>H: ok
+  H->>L: answerAsResident
+  L->>G: canSpend
+  G-->>L: ok or reason
+  L->>A: messages.create
+  A-->>L: text and usage
+  L->>G: done with costUsd
+  L-->>H: text, or ok false
+  H->>R: emit playerChatMessage
+  H-->>C: answer and channel
+```
+
+**State machine - cached room (`server/roomCache.js`)**
+
+```mermaid
+stateDiagram-v2
+  [*] --> Cached: loaded or created
+  Cached --> EvictionScheduled: last player leaves
+  EvictionScheduled --> Cached: player joins
+  EvictionScheduled --> EvictionScheduled: timer fires, players present
+  EvictionScheduled --> Evicted: 5 min, empty
+  Evicted --> Cached: getOrLoadRoom from DB
+```
+
+The `plaza` room is never scheduled for eviction.
+
+**Deployment**
+
+```mermaid
+flowchart LR
+  user["Browser"] --> v["Vercel: client/dist, vercel.json"]
+  user --> s
+  subgraph s["Server host"]
+    r["Render: render.yaml, rootDir server, /health"]
+    d["Docker: Dockerfile, node 22 alpine, port 3000"]
+  end
+  s --> pg[("Postgres via DATABASE_URL")]
+  s --> an["Anthropic API"]
+```
+
+**ER - Postgres (`server/db.js`)**
+
+Only foreign keys in the schema are drawn. `rooms.claimed_by`, `completed_quests.user_id` and `agents.room_id` carry no foreign key in the schema.
+
+```mermaid
+erDiagram
+  agents ||--o{ agent_follows : "follower_id"
+  agents ||--o{ agent_follows : "followed_id"
+  agents ||--o{ agent_messages : "from_agent_id"
+  agents ||--o{ agent_messages : "to_agent_id"
+  rooms { text id PK }
+  users { text id PK }
+  agents { text id PK }
+  agent_follows { text id PK }
+  agent_messages { text id PK }
+  completed_quests { text user_id }
+```
+
+File-backed stores (`users.json`, `conversationLog.json`, `llmMemory.json`, `userQuests.json`, `reputation.json`, `bonds.json`) are described under Data Storage and not drawn.
+
+### Open items register
+
+| # | Item | Owner | Date |
+|---|---|---|---|
+| 1 | Validate model output before it is emitted (`server/llm/llmService.js`) | Phani Marupaka | 2026-10-26 |
+| 2 | Move visitor and nearby names out of the `system`-role message (`server/llm/promptBuilder.js`) | Phani Marupaka | 2026-10-26 |
+| 3 | Add operator kill switch and bot suspension, plus a report event (`server/httpRoutes.js`, `server/socketHandlers.js`) | Phani Marupaka | 2026-10-26 |
+| 4 | Add `npm audit` and gitleaks to CI (`.github/workflows/ci.yml`) | Phani Marupaka | 2026-10-26 |
+| 5 | Add a stored question set and a release-blocking eval run | Phani Marupaka | 2026-10-26 |
+| 6 | Add request IDs, JSON logs, per-run `costUsd` log, transfer audit log | Phani Marupaka | 2026-10-26 |
+| 7 | Set `redirect: "manual"` and re-check the address in `sendWebhook` (`server/botRegistry.js`) | Phani Marupaka | 2026-10-26 |
+| 8 | Dockerfile: add `USER node` and `HEALTHCHECK`; add security headers in `vercel.json` | Phani Marupaka | 2026-10-26 |
+| 9 | Define data retention and a user-deletion route; wire `clearMemory` | Phani Marupaka | 2026-10-26 |
+| 10 | Correct `SECURITY.md` branch name (`master` to `main`); confirm required status checks on `main` | Phani Marupaka | 2026-10-26 |
+| 11 | Confirm whether persistent storage is attached on the Render deployment (not in `render.yaml`) | Phani Marupaka | 2026-10-26 |
+| 12 | Add issue and PR templates (open in `OPEN_SOURCE_CHECKLIST.md`) | Phani Marupaka | 2026-10-26 |
+
+---
+
 ## 📚 More Docs
 
 - 📜 [Contributing Guide](CONTRIBUTING.md)
